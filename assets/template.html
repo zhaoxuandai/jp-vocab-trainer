@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单词背诵 · 日语</title>
+<style>
+  :root{
+    --paper:#f7f4ec;
+    --paper-deep:#efe9dc;
+    --card:#fffdf8;
+    --ink:#211c17;
+    --muted:#7d7466;
+    --line:#e5ddce;
+    --accent:#b5432c;
+    --accent-soft:#f5e5df;
+    --green:#2e7d58;
+    --green-soft:#e3f1e9;
+    --red:#b03e37;
+    --red-soft:#f8e5e3;
+    --shadow:0 10px 30px rgba(60,45,25,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(circle at 15% 10%, rgba(181,67,44,.05), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(120,100,60,.06), transparent 45%),
+      var(--paper);
+    color:var(--ink);
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .jp{font-family:"Yu Mincho","YuMincho","Noto Serif JP","MS Mincho","Hiragino Mincho ProN",serif}
+  .wrap{max-width:960px;margin:0 auto;padding:36px 22px 70px}
+  .view{display:none}
+  .view.active{display:block;animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---------- 主页 ---------- */
+  header.top{text-align:center;margin-bottom:34px}
+  .top .kicker{
+    display:inline-block;font-size:12px;letter-spacing:.32em;color:var(--accent);
+    border:1px solid rgba(181,67,44,.35);border-radius:999px;padding:5px 14px 5px 17px;margin-bottom:16px;
+  }
+  .top h1{font-size:34px;margin:0 0 10px;font-weight:700;letter-spacing:.06em}
+  .top .sub{color:var(--muted);font-size:14px;letter-spacing:.05em}
+  .top .sub b{color:var(--ink);font-weight:600}
+
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:760px){.cards{grid-template-columns:1fr}.top h1{font-size:27px}}
+
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px 22px 20px;
+    box-shadow:var(--shadow);position:relative;overflow:hidden;transition:.22s ease;
+  }
+  .card:hover{transform:translateY(-3px);box-shadow:0 16px 36px rgba(60,45,25,.12)}
+  .card .no{
+    position:absolute;right:16px;top:8px;font-family:Georgia,serif;font-style:italic;
+    font-size:54px;color:rgba(181,67,44,.09);line-height:1;font-weight:700;
+  }
+  .card h2{font-size:19px;margin:0 0 8px;letter-spacing:.03em}
+  .card .desc{font-size:13px;color:var(--muted);line-height:1.7;min-height:44px;margin-bottom:16px}
+  .bar{height:8px;background:var(--paper-deep);border-radius:99px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#c2543a,#a83c27);border-radius:99px;transition:width .5s ease}
+  .bar.slim{height:6px}
+  .card .nums{display:flex;justify-content:space-between;align-items:baseline;margin:10px 0 18px}
+  .card .nums .pct{font-size:26px;font-weight:700;font-family:Georgia,serif;color:var(--accent)}
+  .card .nums .cnt{font-size:12px;color:var(--muted)}
+  .card .nums .cnt b{color:var(--ink);font-weight:600}
+  .btn{
+    width:100%;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:600;
+    background:var(--ink);color:#fdf9f1;cursor:pointer;font-family:inherit;transition:.18s;letter-spacing:.04em;
+  }
+  .btn:hover{background:#3a3229}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost:hover{background:var(--paper-deep)}
+  .card .reset{
+    display:block;margin:12px auto 0;background:none;border:none;color:#b0a695;font-size:11.5px;
+    cursor:pointer;font-family:inherit;text-decoration:underline;text-underline-offset:3px;
+  }
+  .card .reset:hover{color:var(--accent)}
+  .card.done .pct{color:var(--green)}
+  .foot{text-align:center;margin-top:30px;font-size:12px;color:#a89e8d;letter-spacing:.04em}
+
+  /* ---------- 答题 ---------- */
+  .quiz{max-width:680px;margin:0 auto}
+  .quiz-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .quiz-top .mode{font-size:14px;font-weight:600;letter-spacing:.04em}
+  .quiz-top .mode span{color:var(--accent);margin-right:8px;font-family:Georgia,serif;font-style:italic}
+  .quiz-top .stat{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .quiz .overall{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+  .quiz .overall .bar{flex:1}
+  .quiz .overall .p{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+  .stage{
+    background:var(--card);border:1px solid var(--line);border-radius:22px;
+    box-shadow:var(--shadow);padding:42px 36px 34px;position:relative;
+  }
+  .stage .roundtag{
+    position:absolute;top:18px;left:24px;font-size:11.5px;letter-spacing:.18em;color:#a89e8d;
+  }
+  .stage .roundtag b{color:var(--accent);font-weight:700}
+  .stage .pos-tag{
+    display:block;width:fit-content;font-size:11.5px;color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:2px 10px;margin:14px auto 0;letter-spacing:.05em;
+  }
+  .qword{text-align:center;margin:20px 0 8px;line-height:1.25}
+  .qword ruby{font-size:62px;letter-spacing:.04em}
+  .qword rt{font-size:17px;color:var(--accent);letter-spacing:.12em;font-family:"Yu Gothic","Noto Sans JP","Meiryo",sans-serif;font-weight:500}
+  .qword .plain{font-size:52px;letter-spacing:.06em}
+  .qword .plain.kana{letter-spacing:.1em;font-size:46px}
+  .qword .hint{display:block;font-size:12.5px;color:var(--muted);margin-top:10px;letter-spacing:.04em;font-family:"Microsoft YaHei",sans-serif}
+  .qtitle{text-align:center;font-size:13px;color:var(--muted);letter-spacing:.14em;margin-top:6px}
+
+  .options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:30px}
+  @media(max-width:560px){.options{grid-template-columns:1fr}.qword ruby{font-size:48px}.qword .plain{font-size:40px}.qword .plain.kana{font-size:34px}.stage{padding:36px 20px 26px}}
+  .opt{
+    display:flex;align-items:center;gap:12px;text-align:left;
+    border:1px solid var(--line);background:#fffefb;border-radius:14px;
+    padding:15px 16px;font-size:16px;color:var(--ink);cursor:pointer;
+    font-family:inherit;transition:.15s;line-height:1.45;
+  }
+  .opt .idx{
+    flex:0 0 24px;height:24px;border-radius:50%;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    font-size:11.5px;color:var(--muted);font-family:Georgia,serif;
+  }
+  .opt .txt{flex:1}
+  .opt .txt.jp{font-size:23px}
+  .opt:hover:not(:disabled){border-color:#c9bca6;background:#fdf9f0;transform:translateY(-1px)}
+  .opt:disabled{cursor:default}
+  .opt.correct{border-color:var(--green);background:var(--green-soft)}
+  .opt.correct .idx{border-color:var(--green);background:var(--green);color:#fff}
+  .opt.wrong{border-color:var(--red);background:var(--red-soft)}
+  .opt.wrong .idx{border-color:var(--red);background:var(--red);color:#fff}
+  .opt.dim{opacity:.5}
+
+  .feedback{
+    margin-top:20px;border-radius:12px;padding:0 16px;max-height:0;overflow:hidden;
+    opacity:0;transition:.25s ease;font-size:13.5px;line-height:1.85;
+  }
+  .feedback.show{max-height:160px;opacity:1;padding:14px 16px}
+  .feedback.ok{background:var(--green-soft);color:#235f43}
+  .feedback.no{background:var(--red-soft);color:#8d332d}
+  .feedback .fv{font-weight:700;font-size:15px;margin-right:6px}
+  .feedback .fk{color:var(--muted);margin-right:8px;font-family:"Yu Gothic",sans-serif}
+  .feedback .fm{color:var(--ink)}
+
+  .quiz-foot{display:flex;justify-content:space-between;align-items:center;margin-top:18px}
+  .linkbtn{background:none;border:none;color:#a89e8d;font-size:12.5px;cursor:pointer;font-family:inherit;letter-spacing:.04em}
+  .linkbtn:hover{color:var(--accent)}
+
+  /* ---------- 轮次小结 / 通关 ---------- */
+  .center-card{
+    max-width:520px;margin:6vh auto 0;background:var(--card);border:1px solid var(--line);
+    border-radius:22px;box-shadow:var(--shadow);padding:40px 34px;text-align:center;
+  }
+  .center-card .big{font-size:30px;font-weight:700;margin:8px 0 6px;letter-spacing:.04em}
+  .center-card .sub{color:var(--muted);font-size:14px;margin-bottom:24px;line-height:1.8}
+  .statrow{display:flex;justify-content:center;gap:34px;margin:22px 0 28px}
+  .statrow .s .n{font-size:28px;font-weight:700;font-family:Georgia,serif}
+  .statrow .s .l{font-size:11.5px;color:var(--muted);letter-spacing:.12em;margin-top:4px}
+  .statrow .s.ok .n{color:var(--green)}
+  .statrow .s.no .n{color:var(--red)}
+  .center-card .btn{max-width:280px;margin:0 auto}
+  .seal{
+    width:64px;height:64px;margin:0 auto 14px;border-radius:50%;
+    border:2px solid var(--accent);color:var(--accent);display:flex;align-items:center;justify-content:center;
+    font-size:26px;font-family:"Yu Mincho",serif;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 主页 -->
+  <section id="view-home" class="view active">
+    <header class="top">
+      <div class="kicker">日语 · 单词背诵</div>
+      <h1>单词背诵</h1>
+      <div class="sub">共 <b id="total-words">0</b> 个词条 · 进度自动保存在本机</div>
+    </header>
+    <div class="cards" id="cards"></div>
+    <div class="foot">点击卡片开始或继续 · 关闭页面后进度不会丢失</div>
+  </section>
+
+  <!-- 答题 -->
+  <section id="view-quiz" class="view">
+    <div class="quiz">
+      <div class="quiz-top">
+        <div class="mode"><span id="q-mode-no">01</span><i id="q-mode-name" style="font-style:normal">看日语选中文</i></div>
+        <div class="stat" id="q-progress-text">1 / 280</div>
+      </div>
+      <div class="overall">
+        <div class="bar slim"><i id="q-overall-bar" style="width:0%"></i></div>
+        <div class="p" id="q-overall-pct">0%</div>
+      </div>
+
+      <div class="stage">
+        <div class="roundtag">第 <b id="q-round-no">1</b> 轮 · <span id="q-pos">1</span>/<span id="q-len">280</span></div>
+        <div style="text-align:center">
+          <div id="q-word" class="qword"></div>
+          <div class="qtitle" id="q-title">选出正确的中文释义</div>
+        </div>
+        <div class="options" id="q-options"></div>
+        <div class="feedback" id="q-feedback"></div>
+      </div>
+
+      <div class="quiz-foot">
+        <button class="linkbtn" onclick="goHome()">← 返回主页（自动保存）</button>
+        <span class="linkbtn" style="cursor:default" id="q-round-info"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 轮次小结 -->
+  <section id="view-summary" class="view">
+    <div class="center-card">
+      <div class="seal">了</div>
+      <div class="big" id="sum-title">第 1 轮完成</div>
+      <div class="sub" id="sum-sub">这一轮的词已经过完，进入下一轮。</div>
+      <div class="statrow">
+        <div class="s"><div class="n" id="sum-total">0</div><div class="l">本轮题数</div></div>
+        <div class="s ok"><div class="n" id="sum-right">0</div><div class="l">答对</div></div>
+        <div class="s no"><div class="n" id="sum-wrong">0</div><div class="l">答错</div></div>
+      </div>
+      <button class="btn" id="sum-next">进入下一轮</button>
+    </div>
+  </section>
+
+  <!-- 通关 -->
+  <section id="view-victory" class="view">
+    <div class="center-card">
+      <div class="seal">勝</div>
+      <div class="big">全部答对，通关！</div>
+      <div class="sub" id="vic-sub">这个模式的单词已经全部掌握。</div>
+      <div class="statrow">
+        <div class="s"><div class="n" id="vic-total">0</div><div class="l">词条数</div></div>
+        <div class="s ok"><div class="n" id="vic-rounds">0</div><div class="l">总轮数</div></div>
+      </div>
+      <button class="btn" id="vic-again">再来一遍</button>
+      <button class="btn ghost" style="margin-top:12px" onclick="goHome()">返回主页</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+'use strict';
+
+/* ============ 数据区：换成你的词表 ============ */
+/* RAW 每行：[汉字写法, 假名读音, 词性, 中文释义]
+   纯假名词的“汉字写法”直接填假名即可（如 マグニチュード）。
+   CONFUSE：看日语选中文的 3 个中文干扰项，可以不在词表里。
+   KANJI_CONFUSE：看假名写汉字的 3 个 [汉字写法, 读音] 干扰项；
+     读音不得与正确词相同；汉字+假名混写的词，干扰项结尾假名要与
+     正确答案一致；实在没有真实词可用时，读音位置填 "!" 表示假词。 */
+
+const RAW = [
+["救急車","きゅうきゅうしゃ","名","救护车"],
+["被害","ひがい","名","受害、损失"],
+["死者","ししゃ","名","死者"],
+["冷たい","つめたい","形","冷的；冷淡的"],
+["切り裂く","きりさく","他五","劈开、撕裂"],
+["目を通す","めをとおす","组","浏览、过目"],
+["尊敬語","そんけいご","名","尊敬语"],
+["調べる","しらべる","他一","调查；查找"],
+["田中秀雄","たなかひでお","专","田中秀雄(人名)"],
+["マグニチュード","マグニチュード","名","震级"]
+];
+
+const CONFUSE = {
+"救急車":["消防车","急救室","救援车"],
+"被害":["灾害、灾难","伤亡、死伤","赔偿、补偿"],
+"死者":["伤者","失踪者","幸存者"],
+"冷たい":["热的；热情的","凉的；冷静的","冰的；冷酷的"],
+"切り裂く":["切开、割断","撕碎、扯破","砍倒、伐倒"],
+"目を通す":["熟读、精读","抄写、誊写","背诵、记忆"],
+"尊敬語":["谦让语","郑重语","敬体"],
+"調べる":["放弃；停止","隐瞒；掩盖","忘记；遗忘"],
+"田中秀雄":["田中秀夫(人名)","田中和雄(人名)","山中秀雄(人名)"],
+"マグニチュード":["烈度","级数","振幅"]
+};
+
+const KANJI_CONFUSE = {
+"救急車":[["消防車","しょうぼうしゃ"],["救急室","きゅうきゅうしつ"],["救援車","きゅうえんしゃ"]],
+"被害":[["被災","ひさい"],["損害","そんがい"],["危害","きがい"]],
+"死者":[["負傷者","ふしょうしゃ"],["失踪者","しっそうしゃ"],["生存者","せいぞんしゃ"]],
+"冷たい":[["重たい","おもたい"],["眠たい","ねむたい"],["平たい","ひらたい"]],
+"切り裂く":[["切り開く","きりひらく"],["切り抜く","きりぬく"],["切り付く","きりつく"]],
+"目を通す":[["目を離す","めをはなす"],["目を覚ます","めをさまます"],["目を凝らす","めをこらす"]],
+"尊敬語":[["謙譲語","けんじょうご"],["丁寧語","ていねいご"],["敬語","けいご"]],
+"調べる":[["比べる","くらべる"],["並べる","ならべる"],["食べる","たべる"]],
+"田中秀雄":[["田中和雄","たなかかずお"],["山中秀雄","やまなかひでお"],["田中勇雄","たなかゆうお"]]
+};
+
+const WORDS = RAW.map(function(r, i){
+  return {id:i, w:r[0], k:r[1], p:r[2], m:r[3], hasKanji:/[一-鿿]/.test(r[0])};
+});
+const KANJI_WORDS = WORDS.filter(function(w){ return w.hasKanji; });
+
+const MODE_DEFS = [
+  {id:'m1', no:'01', name:'看日语选中文', desc:'看单词和读音，从四个中文释义中选出正确的。', pool:WORDS},
+  {id:'m2', no:'02', name:'看汉字写假名', desc:'看汉字写法，选出正确的假名读音，专考长短音、拗音、促音。', pool:KANJI_WORDS},
+  {id:'m3', no:'03', name:'看假名写汉字', desc:'看假名读音，从四个汉字写法中选出正确的。', pool:KANJI_WORDS}
+];
+const MODE_MAP = {};
+MODE_DEFS.forEach(function(m){ MODE_MAP[m.id] = m; });
+
+const STORE_KEY = 'jpVocabTrainer_v1'; // 每个新词表改一个唯一的名字，避免和别的页面共用进度
+const REVIEW_RATIO = 0.3;
+
+/* ============ 存档 ============ */
+function freshMode(){ return {status:{}, round:null, done:false, roundNo:0}; }
+function freshState(){ return {version:1, modes:{m1:freshMode(), m2:freshMode(), m3:freshMode()}}; }
+let state = (function(){
+  try{
+    const s = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (s && s.modes && s.modes.m1 && s.modes.m2 && s.modes.m3) return s;
+  }catch(e){}
+  return freshState();
+})();
+function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+/* ============ 小工具 ============ */
+function shuffle(a){
+  a = a.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function sample(arr, n){ return shuffle(arr).slice(0, Math.max(0, n)); }
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function knownCount(modeId){
+  const st = state.modes[modeId];
+  return MODE_MAP[modeId].pool.filter(function(w){ return st.status[w.id] === 1; }).length;
+}
+
+/* ============ 造牌：假名变形干扰项 ============ */
+const SMALL2BIG = {'ゃ':'や','ゅ':'ゆ','ょ':'よ','っ':'つ','ぁ':'あ','ぃ':'い','ぅ':'う','ぇ':'え','ぉ':'お',
+                   'ャ':'ヤ','ュ':'ユ','ョ':'ヨ','ッ':'ツ','ァ':'ア','ィ':'イ','ゥ':'ウ','ェ':'エ','ォ':'オ'};
+const BIG2SMALL = {'や':'ゃ','ゆ':'ゅ','よ':'ょ','ヤ':'ャ','ユ':'ュ','ヨ':'ョ'};
+const DAKU = {'か':'が','き':'ぎ','く':'ぐ','け':'げ','こ':'ご','さ':'ざ','し':'じ','す':'ず','せ':'ぜ','そ':'ぞ',
+              'た':'だ','ち':'ぢ','つ':'づ','て':'で','と':'ど','は':'ば','ひ':'び','ふ':'ぶ','へ':'べ','ほ':'ぼ',
+              'カ':'ガ','キ':'ギ','ク':'グ','ケ':'ゲ','コ':'ゴ','サ':'ザ','シ':'ジ','ス':'ズ','セ':'ゼ','ソ':'ゾ',
+              'タ':'ダ','チ':'ヂ','ツ':'ヅ','テ':'デ','ト':'ド','ハ':'バ','ヒ':'ビ','フ':'ブ','ヘ':'ベ','ホ':'ボ'};
+const HAND = {'は':'ぱ','ひ':'ぴ','ふ':'ぷ','へ':'ぺ','ほ':'ぽ','ハ':'パ','ヒ':'ピ','フ':'プ','ヘ':'ペ','ホ':'ポ'};
+const UNVOICE = {};
+Object.keys(DAKU).forEach(function(k){ UNVOICE[DAKU[k]] = k; });
+Object.keys(HAND).forEach(function(k){ UNVOICE[HAND[k]] = k; });
+const LONG_U = 'おこそとのほもよろをごぞどぼぽぉオコソトノホモヨロヲゴゾドボポ';
+const LONG_I = 'えけせてねへめれげぜでべぺエケセテネヘメレゲゼデベペ';
+
+function kanaVariants(k){
+  const out = new Set();
+  for (let i = 0; i < k.length; i++){
+    const c = k[i], prev = k[i-1];
+    const head = k.slice(0, i), tail = k.slice(i+1);
+    if (c === 'ー') out.add(head + tail);                                  // 去长音
+    if (SMALL2BIG[c]) out.add(head + SMALL2BIG[c] + tail);                  // 小写→大写
+    if (BIG2SMALL[c]) out.add(head + BIG2SMALL[c] + tail);                  // 大写→小写
+    if ((c === 'っ' || c === 'ッ')) out.add(head + tail);                    // 去促音
+    if (DAKU[c]) out.add(head + DAKU[c] + tail);                            // 加浊点
+    if (UNVOICE[c]) out.add(head + UNVOICE[c] + tail);                      // 去浊点
+    if (HAND[c]) out.add(head + HAND[c] + tail);                            // 加半浊点
+    if (c === 'う' && LONG_U.indexOf(prev) >= 0){                           // 长音う
+      out.add(head + tail);
+      out.add(head + 'お' + tail);
+    }
+    if (c === 'ウ' && LONG_U.indexOf(prev) >= 0){
+      out.add(head + tail);
+      out.add(head + 'オ' + tail);
+    }
+    if (c === 'い' && LONG_I.indexOf(prev) >= 0){                           // 长音い
+      out.add(head + tail);
+      out.add(head + 'え' + tail);
+    }
+    if (c === 'イ' && LONG_I.indexOf(prev) >= 0){
+      out.add(head + tail);
+      out.add(head + 'エ' + tail);
+    }
+  }
+  out.delete(k);
+  return Array.from(out);
+}
+
+function optionKana(word){
+  const correct = word.k;
+  const picked = [];
+  const have = new Set([correct]);
+  const vars = shuffle(kanaVariants(correct));
+  for (let i = 0; i < vars.length && picked.length < 3; i++){
+    if (!have.has(vars[i])){ have.add(vars[i]); picked.push(vars[i]); }
+  }
+  if (picked.length < 3){
+    const others = KANJI_WORDS.filter(function(w){ return w.id !== word.id; }).map(function(w){
+      let score = w.k.length === correct.length ? 3 : 0;
+      let pre = 0;
+      while (pre < w.k.length && pre < correct.length && w.k[pre] === correct[pre]) pre++;
+      score += pre * 0.8 + Math.random() * 1.5;
+      return {k:w.k, score:score};
+    }).sort(function(a, b){ return b.score - a.score; });
+    for (let i = 0; i < others.length && picked.length < 3; i++){
+      const k = others[i].k;
+      if (!have.has(k)){ have.add(k); picked.push(k); }
+    }
+  }
+  return shuffle([correct].concat(picked));
+}
+
+function meaningKind(m){
+  if (m.indexOf("地名") >= 0) return "place";
+  if (m.indexOf("人名") >= 0) return "person";
+  if (m.indexOf("报纸名") >= 0) return "paper";
+  if (m.indexOf("作品名") >= 0) return "work";
+  return "";
+}
+
+function optionMeaning(word){
+  const correct = word.m;
+  const have = new Set([correct]);
+  const picked = [];
+  const custom = CONFUSE[word.w] || [];
+  for (let i = 0; i < custom.length && picked.length < 3; i++){
+    if (!have.has(custom[i])){ have.add(custom[i]); picked.push(custom[i]); }
+  }
+  if (picked.length < 3){
+    const kind = meaningKind(correct);
+    const pool = WORDS.filter(function(w){ return w.id !== word.id; }).map(function(w){
+      let score = w.p === word.p ? 1 : 0;
+      for (let i = 0; i < w.m.length; i++){
+        if (word.m.indexOf(w.m[i]) >= 0 && /[一-鿿]/.test(w.m[i])) score += 2;
+      }
+      if (kind && meaningKind(w.m) === kind) score += 3;
+      return {m:w.m, score:score + Math.random() * 2};
+    }).sort(function(a, b){ return b.score - a.score; });
+    for (let i = 0; i < pool.length && picked.length < 3; i++){
+      if (!have.has(pool[i].m)){ have.add(pool[i].m); picked.push(pool[i].m); }
+    }
+  }
+  return shuffle([correct].concat(picked));
+}
+
+function optionKanji(word){
+  const correct = word.w;
+  const have = new Set([correct]);
+  const picked = [];
+  const custom = KANJI_CONFUSE[word.w] || [];
+  for (let i = 0; i < custom.length && picked.length < 3; i++){
+    const k = custom[i][0], r = custom[i][1];
+    if ((r === "!" || r !== word.k) && !have.has(k)){ have.add(k); picked.push(k); }
+  }
+  if (picked.length < 3){
+    const cands = KANJI_WORDS.filter(function(w){
+      return w.id !== word.id && w.k !== word.k;
+    }).map(function(w){
+      let score = 0;
+      for (let i = 0; i < w.w.length; i++){
+        if (correct.indexOf(w.w[i]) >= 0 && /[一-鿿]/.test(w.w[i])) score += 4;
+      }
+      if (w.w.length === correct.length) score += 2;
+      let pre = 0;
+      while (pre < w.k.length && pre < word.k.length && w.k[pre] === word.k[pre]) pre++;
+      score += pre * 0.6;
+      return {w:w.w, score:score + Math.random() * 2.5};
+    });
+    cands.sort(function(a, b){ return b.score - a.score; });
+    for (let i = 0; i < cands.length && picked.length < 3; i++){
+      if (!have.has(cands[i].w)){ have.add(cands[i].w); picked.push(cands[i].w); }
+    }
+  }
+  return shuffle([correct].concat(picked));
+}
+
+/* ============ 视图切换 ============ */
+let currentModeId = null;
+let advanceTimer = null;
+
+function showView(id){
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function goHome(){
+  if (advanceTimer){ clearTimeout(advanceTimer); advanceTimer = null; }
+  currentModeId = null;
+  renderHome();
+  showView('view-home');
+}
+
+/* ============ 主页 ============ */
+function renderHome(){
+  document.getElementById('total-words').textContent = WORDS.length;
+  const box = document.getElementById('cards');
+  let html = '';
+  MODE_DEFS.forEach(function(m){
+    const st = state.modes[m.id];
+    const total = m.pool.length;
+    const known = knownCount(m.id);
+    const pct = Math.round(known / total * 100);
+    let btn;
+    if (st.done) btn = '再来一遍';
+    else if (st.round) {
+      btn = st.round.pos >= st.round.ids.length ? '查看本轮结果' : '继续背诵　' + st.round.pos + '/' + st.round.ids.length;
+    } else btn = '开始背诵';
+    html += '<div class="card ' + (st.done ? 'done' : '') + '">'
+      + '<div class="no">' + m.no + '</div>'
+      + '<h2>' + m.name + '</h2>'
+      + '<div class="desc">' + m.desc + '</div>'
+      + '<div class="bar"><i style="width:' + pct + '%"></i></div>'
+      + '<div class="nums"><div class="pct">' + pct + '%</div>'
+      + '<div class="cnt">已掌握 <b>' + known + '</b> / ' + total + '</div></div>'
+      + '<button class="btn" data-start="' + m.id + '">' + btn + '</button>'
+      + '<button class="reset" data-reset="' + m.id + '">重置本模式进度</button>'
+      + '</div>';
+  });
+  box.innerHTML = html;
+  box.querySelectorAll('[data-start]').forEach(function(b){
+    b.addEventListener('click', function(){ startMode(b.getAttribute('data-start')); });
+  });
+  box.querySelectorAll('[data-reset]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      const id = b.getAttribute('data-reset');
+      if (confirm('确定要清空「' + MODE_MAP[id].name + '」的全部进度吗？')) resetMode(id);
+    });
+  });
+}
+
+function resetMode(id){
+  state.modes[id] = freshMode();
+  save();
+  renderHome();
+}
+
+/* ============ 开始 / 继续 ============ */
+function newRound(modeId, phase, ids){
+  const st = state.modes[modeId];
+  st.roundNo = (st.roundNo || 0) + 1;
+  st.round = {phase:phase, ids:shuffle(ids), pos:0, wrong:[], right:0};
+  save();
+  return st.round;
+}
+
+function startMode(modeId){
+  const st = state.modes[modeId];
+  const pool = MODE_MAP[modeId].pool;
+  if (st.done){
+    if (!confirm('这个模式已经通关了，要重新开始吗？进度会清零。')) return;
+    state.modes[modeId] = freshMode();
+    save();
+  }
+  const st2 = state.modes[modeId];
+  if (!st2.round){
+    newRound(modeId, 'normal', pool.map(function(w){ return w.id; }));
+  }
+  currentModeId = modeId;
+  if (st2.round.pos >= st2.round.ids.length) renderSummary(modeId);
+  else renderQuestion(modeId);
+}
+
+/* ============ 答题 ============ */
+function renderQuestion(modeId){
+  const mode = MODE_MAP[modeId];
+  const st = state.modes[modeId];
+  const round = st.round;
+  const word = WORDS[round.ids[round.pos]];
+
+  document.getElementById('q-mode-no').textContent = mode.no;
+  document.getElementById('q-mode-name').textContent = mode.name;
+  document.getElementById('q-round-no').textContent = st.roundNo;
+  document.getElementById('q-pos').textContent = round.pos + 1;
+  document.getElementById('q-len').textContent = round.ids.length;
+  document.getElementById('q-progress-text').textContent = (round.pos + 1) + ' / ' + round.ids.length;
+  document.getElementById('q-round-info').textContent = round.phase === 'final' ? '通关终测' : '';
+
+  const total = mode.pool.length;
+  const pct = Math.round(knownCount(modeId) / total * 100);
+  document.getElementById('q-overall-bar').style.width = pct + '%';
+  document.getElementById('q-overall-pct').textContent = pct + '%';
+
+  let wordHtml = '';
+  let title = '';
+  let options = [];
+  let optClass = '';
+
+  if (modeId === 'm1'){
+    title = '选出正确的中文释义';
+    if (word.hasKanji){
+      wordHtml = '<ruby><span class="jp">' + esc(word.w) + '</span><rt>' + esc(word.k) + '</rt></ruby>';
+    } else {
+      wordHtml = '<span class="plain jp">' + esc(word.w) + '</span>';
+    }
+    wordHtml += '<span class="pos-tag" style="font-family:\'Microsoft YaHei\',sans-serif">' + esc(word.p) + '</span>';
+    options = optionMeaning(word);
+  } else if (modeId === 'm2'){
+    title = '选出正确的假名读音';
+    wordHtml = '<span class="plain jp">' + esc(word.w) + '</span>';
+    wordHtml += '<span class="pos-tag" style="font-family:\'Microsoft YaHei\',sans-serif">' + esc(word.p) + '</span>';
+    options = optionKana(word);
+    optClass = 'jp';
+  } else {
+    title = '选出正确的汉字写法';
+    wordHtml = '<span class="plain kana jp">' + esc(word.k) + '</span>';
+    const homo = KANJI_WORDS.filter(function(w){ return w.k === word.k; });
+    if (homo.length > 1){
+      wordHtml += '<span class="hint">提示：' + esc(word.p) + ' · ' + esc(word.m) + '</span>';
+    }
+    options = optionKanji(word);
+    optClass = 'jp';
+  }
+
+  document.getElementById('q-word').innerHTML = wordHtml;
+  document.getElementById('q-title').textContent = title;
+
+  const letters = ['A','B','C','D'];
+  const box = document.getElementById('q-options');
+  box.innerHTML = options.map(function(o, i){
+    return '<button class="opt" data-val="' + esc(o) + '">'
+      + '<span class="idx">' + letters[i] + '</span>'
+      + '<span class="txt ' + optClass + '">' + esc(o) + '</span></button>';
+  }).join('');
+  box.querySelectorAll('.opt').forEach(function(btn){
+    btn.addEventListener('click', function(){ answer(modeId, word, btn, options); });
+  });
+  const fb = document.getElementById('q-feedback');
+  fb.className = 'feedback';
+  fb.innerHTML = '';
+  showView('view-quiz');
+}
+
+function answer(modeId, word, btn, options){
+  if (advanceTimer) return;
+  const mode = MODE_MAP[modeId];
+  const st = state.modes[modeId];
+  const round = st.round;
+  const correctVal = modeId === 'm1' ? word.m : (modeId === 'm2' ? word.k : word.w);
+  const chosen = btn.getAttribute('data-val');
+  const ok = chosen === correctVal;
+
+  st.status[word.id] = ok ? 1 : 2;
+  if (ok) round.right++;
+  else round.wrong.push(word.id);
+  round.pos++;
+  save();
+
+  const box = document.getElementById('q-options');
+  box.querySelectorAll('.opt').forEach(function(b){
+    b.disabled = true;
+    if (b.getAttribute('data-val') === correctVal) b.classList.add('correct');
+    else if (b === btn) b.classList.add('wrong');
+    else b.classList.add('dim');
+  });
+
+  const fb = document.getElementById('q-feedback');
+  fb.className = 'feedback show ' + (ok ? 'ok' : 'no');
+  fb.innerHTML = '<span class="fv">' + (ok ? '✓ 答对了' : '× 又记一次') + '</span>'
+    + '<span class="fv jp" style="margin-right:10px">' + esc(word.w) + '</span>'
+    + '<span class="fk">' + esc(word.hasKanji ? word.k : '') + '</span>'
+    + '<span class="fm">' + esc(word.m) + '</span>';
+
+  advanceTimer = setTimeout(function(){
+    advanceTimer = null;
+    if (currentModeId !== modeId) return;
+    if (round.pos >= round.ids.length) renderSummary(modeId);
+    else renderQuestion(modeId);
+  }, ok ? 650 : 1250);
+}
+
+/* ============ 轮次小结 ============ */
+function renderSummary(modeId){
+  const st = state.modes[modeId];
+  const round = st.round;
+  document.getElementById('sum-title').textContent = '第 ' + st.roundNo + ' 轮完成';
+  document.getElementById('sum-total').textContent = round.ids.length;
+  document.getElementById('sum-right').textContent = round.right;
+  document.getElementById('sum-wrong').textContent = round.wrong.length;
+
+  let sub;
+  if (round.phase === 'final'){
+    sub = round.wrong.length === 0
+      ? '终测全部答对，准备通关。'
+      : '终测有 ' + round.wrong.length + ' 个词又答错了，重新进入下一轮巩固。';
+  } else if (round.wrong.length === 0){
+    sub = '本轮全对，可以直接进入下一轮。';
+  } else {
+    sub = '答错的 ' + round.wrong.length + ' 个词会全部进入下一轮，另外随机抽三成已掌握的词一起复习。';
+  }
+  document.getElementById('sum-sub').textContent = sub;
+
+  const btn = document.getElementById('sum-next');
+  btn.textContent = '进入下一轮';
+  btn.onclick = function(){ nextRound(modeId); };
+  showView('view-summary');
+}
+
+function nextRound(modeId){
+  const st = state.modes[modeId];
+  const mode = MODE_MAP[modeId];
+  const pool = mode.pool;
+  const round = st.round;
+
+  const unknown = pool.filter(function(w){ return st.status[w.id] === 2; });
+  const known = pool.filter(function(w){ return st.status[w.id] === 1; });
+
+  if (round.phase === 'final'){
+    if (round.wrong.length === 0){
+      st.done = true;
+      st.round = null;
+      save();
+      renderVictory(modeId);
+      return;
+    }
+    const sampleK = sample(known, Math.ceil(known.length * REVIEW_RATIO));
+    const ids = unknown.map(function(w){ return w.id; }).concat(sampleK.map(function(w){ return w.id; }));
+    st.roundNo++;
+    st.round = {phase:'normal', ids:shuffle(ids), pos:0, wrong:[], right:0};
+    save();
+    renderQuestion(modeId);
+    return;
+  }
+
+  if (unknown.length === 0){
+    newRound(modeId, 'final', pool.map(function(w){ return w.id; }));
+    renderQuestion(modeId);
+    return;
+  }
+
+  const sampleK = sample(known, Math.ceil(known.length * REVIEW_RATIO));
+  const ids = unknown.map(function(w){ return w.id; }).concat(sampleK.map(function(w){ return w.id; }));
+  st.roundNo++;
+  st.round = {phase:'normal', ids:shuffle(ids), pos:0, wrong:[], right:0};
+  save();
+  renderQuestion(modeId);
+}
+
+/* ============ 通关 ============ */
+function renderVictory(modeId){
+  const mode = MODE_MAP[modeId];
+  const st = state.modes[modeId];
+  document.getElementById('vic-sub').textContent = '「' + mode.name + '」的 ' + mode.pool.length + ' 个词条已经全部掌握。';
+  document.getElementById('vic-total').textContent = mode.pool.length;
+  document.getElementById('vic-rounds').textContent = st.roundNo;
+  document.getElementById('vic-again').onclick = function(){
+    if (!confirm('要从头再来一遍吗？本模式的进度会清零。')) return;
+    state.modes[modeId] = freshMode();
+    save();
+    startMode(modeId);
+  };
+  showView('view-victory');
+}
+
+/* ============ 启动 ============ */
+renderHome();
+</script>
+</body>
+</html>
