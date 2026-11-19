@@ -177,7 +177,7 @@ class El {
 function boot(store){
   const els = {};
   const get = id => els[id] || (els[id] = new El(id));
-  const views = ['view-home', 'view-quiz', 'view-summary', 'view-victory'].map(get);
+  const views = ['view-home', 'view-quiz', 'view-summary', 'view-victory', 'view-review'].map(get);
   let timers = [];
   const env = {
     document: { querySelectorAll: s => s === '.view' ? views : [], getElementById: get },
@@ -260,6 +260,29 @@ try {
   if (stateNow.modes.m1.round === null && stateNow.modes.m2.round === null &&
       stateNow.modes.m3.round !== null) ok('三个模式的进度互相独立');
   else fail('三个模式进度没有正确隔离');
+
+  // 5.5 错题计数与错题回顾
+  store = {}; env = boot(store); t = env.__t;
+  env.els['cards'].querySelectorAll('[data-start]')[0].click();
+  const firstId = t.round().ids[0];
+  answer(env, false);
+  if (t.state.modes.m1.wrong[firstId] !== 1) fail('答错后错题计数没有 +1');
+  else ok('答错后错题计数 +1');
+
+  env.els['open-review'].click();
+  if (t.activeView() !== 'view-review') fail('错题回顾入口没有打开独立页面');
+  else {
+    const body = env.els['review-body'].innerHTML;
+    const rows = (body.match(/<tr>/g) || []).length;
+    if (rows !== WORDS.length) fail('错题回顾没有列出全部词（' + rows + '/' + WORDS.length + '）');
+    else if (!body.includes(WORDS[firstId].w)) fail('错题回顾没有列出答错的词');
+    else ok('错题回顾列出全部 ' + WORDS.length + ' 个词，并包含答错的词');
+  }
+
+  const saved2 = JSON.parse(JSON.stringify(store));
+  const env3 = boot(saved2), t3 = env3.__t;
+  if (t3.state.modes.m1.wrong[firstId] === 1) ok('刷新后错题计数保留');
+  else fail('刷新后错题计数丢失');
 } catch (e){
   fail('流程模拟异常: ' + e.message);
 }

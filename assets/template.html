@@ -84,6 +84,34 @@
   .card.done .pct{color:var(--green)}
   .foot{text-align:center;margin-top:30px;font-size:12px;color:#a89e8d;letter-spacing:.04em}
 
+  /* ---------- 错题回顾 ---------- */
+  .review-entry{max-width:320px;margin:26px auto 0;text-align:center}
+  .review-entry .btn{padding:11px}
+  .review-note{font-size:11.5px;color:#a89e8d;margin-top:9px;letter-spacing:.04em}
+  .review{max-width:840px;margin:0 auto}
+  .review-top{margin-bottom:20px}
+  .review-top .linkbtn{padding:0;margin-bottom:18px}
+  .review-title{font-size:30px;font-weight:700;letter-spacing:.05em;margin:0 0 6px}
+  .review-sub{font-size:13px;color:var(--muted);letter-spacing:.05em}
+  .review-table-wrap{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:auto}
+  .review-table{width:100%;border-collapse:collapse;min-width:660px}
+  .review-table th{
+    text-align:left;font-size:11.5px;font-weight:600;letter-spacing:.16em;color:#a89e8d;
+    padding:14px 16px;border-bottom:1px solid var(--line);background:#fbf8f1;white-space:nowrap;
+  }
+  .review-table th.c,.review-table td.num{text-align:center}
+  .review-table td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .review-table tr:last-child td{border-bottom:none}
+  .review-table tr:hover td{background:#fdfaf3}
+  .review-table .rw{font-size:21px;letter-spacing:.03em;font-family:"Yu Mincho","YuMincho","Noto Serif JP","MS Mincho",serif}
+  .review-table .rw rt{font-size:11px;color:var(--accent);letter-spacing:.08em;font-family:"Yu Gothic","Noto Sans JP","Meiryo",sans-serif}
+  .review-table .rm{font-size:14px;color:var(--muted);line-height:1.6}
+  .review-table td.num{font-family:Georgia,serif;font-size:16px;color:#b3a996;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .review-table td.num.hit{color:var(--red);font-weight:700}
+  .review-table td.num.na{color:#d3cabb}
+  .review-foot{text-align:center;font-size:11.5px;color:#a89e8d;margin-top:14px;letter-spacing:.04em}
+  @media(max-width:560px){.review-title{font-size:24px}}
+
   /* ---------- 答题 ---------- */
   .quiz{max-width:680px;margin:0 auto}
   .quiz-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
@@ -183,6 +211,10 @@
       <div class="sub">共 <b id="total-words">0</b> 个词条 · 进度自动保存在本机</div>
     </header>
     <div class="cards" id="cards"></div>
+    <div class="review-entry">
+      <button class="btn ghost" id="open-review">错题回顾</button>
+      <div class="review-note">查看每个词在三个模式下的累计答错次数</div>
+    </div>
     <div class="foot">点击卡片开始或继续 · 关闭页面后进度不会丢失</div>
   </section>
 
@@ -242,6 +274,33 @@
       </div>
       <button class="btn" id="vic-again">再来一遍</button>
       <button class="btn ghost" style="margin-top:12px" onclick="goHome()">返回主页</button>
+    </div>
+    </section>
+
+  <!-- 错题回顾 -->
+  <section id="view-review" class="view">
+    <div class="review">
+      <div class="review-top">
+        <button class="linkbtn" onclick="goHome()">← 返回主页</button>
+        <div class="review-title">错题回顾</div>
+        <div class="review-sub">所有词汇在三个模式下的累计答错次数 · 按总次数排序</div>
+      </div>
+      <div class="review-table-wrap">
+        <table class="review-table">
+          <thead>
+            <tr>
+              <th>单词</th>
+              <th>中文释义</th>
+              <th class="c">模式一</th>
+              <th class="c">模式二</th>
+              <th class="c">模式三</th>
+              <th class="c">合计</th>
+            </tr>
+          </thead>
+          <tbody id="review-body"></tbody>
+        </table>
+      </div>
+      <div class="review-foot">模式二、三只考含汉字的词，纯假名词显示为「—」。</div>
     </div>
   </section>
 
@@ -313,12 +372,17 @@ const STORE_KEY = 'jpVocabTrainer_v1'; // 每个新词表改一个唯一的名�
 const REVIEW_RATIO = 0.3;
 
 /* ============ 存档 ============ */
-function freshMode(){ return {status:{}, round:null, done:false, roundNo:0}; }
+function freshMode(){ return {status:{}, round:null, done:false, roundNo:0, wrong:{}}; }
 function freshState(){ return {version:1, modes:{m1:freshMode(), m2:freshMode(), m3:freshMode()}}; }
 let state = (function(){
   try{
     const s = JSON.parse(localStorage.getItem(STORE_KEY));
-    if (s && s.modes && s.modes.m1 && s.modes.m2 && s.modes.m3) return s;
+    if (s && s.modes && s.modes.m1 && s.modes.m2 && s.modes.m3){
+      ['m1', 'm2', 'm3'].forEach(function(k){
+        if (!s.modes[k].wrong) s.modes[k].wrong = {};
+      });
+      return s;
+    }
   }catch(e){}
   return freshState();
 })();
@@ -531,7 +595,7 @@ function renderHome(){
     b.addEventListener('click', function(e){
       e.stopPropagation();
       const id = b.getAttribute('data-reset');
-      if (confirm('确定要清空「' + MODE_MAP[id].name + '」的全部进度吗？')) resetMode(id);
+      if (confirm('确定要清空「' + MODE_MAP[id].name + '」的全部进度和错题记录吗？')) resetMode(id);
     });
   });
 }
@@ -648,6 +712,7 @@ function answer(modeId, word, btn, options){
   const ok = chosen === correctVal;
 
   st.status[word.id] = ok ? 1 : 2;
+  if (!ok) st.wrong[word.id] = (st.wrong[word.id] || 0) + 1;
   if (ok) round.right++;
   else round.wrong.push(word.id);
   round.pos++;
@@ -743,6 +808,35 @@ function nextRound(modeId){
   renderQuestion(modeId);
 }
 
+function openReview(){
+  if (advanceTimer){ clearTimeout(advanceTimer); advanceTimer = null; }
+  currentModeId = null;
+  renderReview();
+  showView('view-review');
+}
+
+function renderReview(){
+  const rows = WORDS.map(function(w){
+    const c1 = state.modes.m1.wrong[w.id] || 0;
+    const c2 = w.hasKanji ? (state.modes.m2.wrong[w.id] || 0) : null;
+    const c3 = w.hasKanji ? (state.modes.m3.wrong[w.id] || 0) : null;
+    return {w:w, c1:c1, c2:c2, c3:c3, total:c1 + (c2 || 0) + (c3 || 0)};
+  });
+  rows.sort(function(a, b){ return b.total - a.total || a.w.id - b.w.id; });
+  const cell = function(n){
+    if (n === null) return '<td class="num na">—</td>';
+    return '<td class="num' + (n > 0 ? ' hit' : '') + '">' + n + '</td>';
+  };
+  document.getElementById('review-body').innerHTML = rows.map(function(r){
+    const word = r.w.hasKanji
+      ? '<ruby class="rw">' + esc(r.w.w) + '<rt>' + esc(r.w.k) + '</rt></ruby>'
+      : '<span class="rw jp">' + esc(r.w.w) + '</span>';
+    return '<tr><td>' + word + '</td><td class="rm">' + esc(r.w.m) + '</td>'
+      + cell(r.c1) + cell(r.c2) + cell(r.c3)
+      + '<td class="num' + (r.total > 0 ? ' hit' : '') + '">' + r.total + '</td></tr>';
+  }).join('');
+}
+
 /* ============ 通关 ============ */
 function renderVictory(modeId){
   const mode = MODE_MAP[modeId];
@@ -760,6 +854,7 @@ function renderVictory(modeId){
 }
 
 /* ============ 启动 ============ */
+document.getElementById('open-review').addEventListener('click', openReview);
 renderHome();
 </script>
 </body>
