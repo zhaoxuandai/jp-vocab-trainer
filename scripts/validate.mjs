@@ -197,7 +197,8 @@ function boot(store){
   vm.runInContext(
     script + '\n;globalThis.__t = {state, WORDS, current: () => currentModeId, ' +
     'round: () => currentModeId ? state.modes[currentModeId].round : null, ' +
-    'activeView: () => document.querySelectorAll(".view").find(v => v.classList.contains("active")).id};',
+    'activeView: () => document.querySelectorAll(".view").find(v => v.classList.contains("active")).id, ' +
+    'knownCount, inFinalReview};',
     env
   );
   return env;
@@ -230,7 +231,7 @@ try {
   for (let i = 0; i < pools[0]; i++) answer(env, true);
   env.els['sum-next'].onclick(); env.flush();
   if (t.activeView() !== 'view-victory' || !t.state.modes.m1.done) fail('终测全对后没有通关');
-  else ok('全对流程：答题 → 小结 → 全词终测 → 通关');
+  else ok('全对流程：答题 → 小结 → 最终复习 → 通关');
 
   // 5.2 全错后下一轮包含全部错词
   store = {}; env = boot(store); t = env.__t;
@@ -284,16 +285,62 @@ try {
   if (t3.state.modes.m1.wrong[firstId] === 1) ok('刷新后错题计数保留');
   else fail('刷新后错题计数丢失');
 
-  // 5.6 旧存档迁移（没有 wrong 字段）
+  // 5.6 旧存档迁移
   const keyMatch = script.match(/const STORE_KEY = '([^']+)'/);
   if (keyMatch){
     const old = {version:1, modes:{}};
-    ['m1', 'm2', 'm3'].forEach(k => { old.modes[k] = {status:{}, round:null, done:false, roundNo:0}; });
+    ['m1', 'm2', 'm3'].forEach(k => {
+      old.modes[k] = {status:{0:1, 1:2}, round:null, done:false, roundNo:0};
+    });
     const storeOld = {}; storeOld[keyMatch[1]] = JSON.stringify(old);
     const envOld = boot(storeOld);
-    if (!envOld.__t.state.modes.m1.wrong) fail('旧存档迁移后没有错题计数对象');
-    else ok('旧存档自动补上错题计数');
+    const m1 = envOld.__t.state.modes.m1;
+    if (!m1.wrong) fail('旧存档迁移后没有错题计数对象');
+    else if (m1.status[0] !== 1 || m1.streak[0] !== 1 || m1.status[1] !== 0 || m1.streak[1] !== 0)
+      fail('旧已掌握词的迁移不正确');
+    else ok('旧存档迁移：已掌握词按“已对 1 次”处理');
+
+    const oldDone = {version:1, modes:{}};
+    ['m1', 'm2', 'm3'].forEach(k => {
+      oldDone.modes[k] = {status:{}, round:null, done:(k === 'm2'), roundNo:3};
+    });
+    const storeDone = {}; storeDone[keyMatch[1]] = JSON.stringify(oldDone);
+    const envDone = boot(storeDone);
+    const m2 = envDone.__t.state.modes.m2;
+    if (!m2.done || m2.streak[0] !== 2 || m2.status[0] !== 1) fail('旧通关记录迁移不正确');
+    else ok('旧通关记录保持通关');
   }
+
+  // 5.7 连续答对两次退出 + 最终复习
+  store = {}; env = boot(store); t = env.__t;
+  env.els['cards'].querySelectorAll('[data-start]')[0].click();
+  for (let i = 0; i < pools[0]; i++) answer(env, true);
+  if (t.knownCount('m1') !== pools[0]) fail('进度没有按“答对过一次”计算');
+  else ok('答对一次后进度按 100% 计算');
+
+  env.els['sum-next'].onclick(); env.flush();
+  if (!t.round() || t.round().phase !== 'final' || t.round().ids.length !== pools[0])
+    fail('进度 100% 后没有进入最终复习');
+  else ok('进度 100% 后进入最终复习');
+
+  const finalIds = t.round().ids.slice();
+  const retiredId = finalIds[0];
+  const wrongId = finalIds[1];
+  for (let i = 0; i < finalIds.length; i++) answer(env, i !== 1);
+  env.els['sum-next'].onclick(); env.flush();
+  if (!t.round() || t.round().phase !== 'final' ||
+      t.round().ids.length !== 1 || t.round().ids[0] !== wrongId)
+    fail('连续答对两次的词没有退出，或最终复习集合不正确');
+  else ok('连续答对两次的词退出，答错的词留在最终复习');
+  if (t.round().ids.includes(retiredId)) fail('已退出的词又出现了');
+  else ok('已退出的词不再出现');
+
+  answer(env, true);
+  env.els['sum-next'].onclick(); env.flush();
+  answer(env, true);
+  env.els['sum-next'].onclick(); env.flush();
+  if (!t.state.modes.m1.done) fail('最终复习完成后没有通关');
+  else ok('最终复习完成后通关');
 } catch (e){
   fail('流程模拟异常: ' + e.message);
 }

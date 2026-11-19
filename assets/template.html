@@ -215,7 +215,7 @@
       <button class="btn ghost" id="open-review">错题回顾</button>
       <div class="review-note">查看每个词在三个模式下的累计答错次数</div>
     </div>
-    <div class="foot">点击卡片开始或继续 · 关闭页面后进度不会丢失</div>
+    <div class="foot">连续答对两次的词不再出现 · 进度 100% 后进入最终复习 · 关闭页面后进度不会丢失</div>
   </section>
 
   <!-- 答题 -->
@@ -372,14 +372,24 @@ const STORE_KEY = 'jpVocabTrainer_v1'; // 每个新词表改一个唯一的名�
 const REVIEW_RATIO = 0.3;
 
 /* ============ 存档 ============ */
-function freshMode(){ return {status:{}, round:null, done:false, roundNo:0, wrong:{}}; }
+function freshMode(){ return {status:{}, streak:{}, round:null, done:false, roundNo:0, wrong:{}}; }
 function freshState(){ return {version:1, modes:{m1:freshMode(), m2:freshMode(), m3:freshMode()}}; }
 let state = (function(){
   try{
     const s = JSON.parse(localStorage.getItem(STORE_KEY));
     if (s && s.modes && s.modes.m1 && s.modes.m2 && s.modes.m3){
       ['m1', 'm2', 'm3'].forEach(function(k){
-        if (!s.modes[k].wrong) s.modes[k].wrong = {};
+        const st = s.modes[k];
+        if (!st.wrong) st.wrong = {};
+        if (!st.streak){
+          st.streak = {};
+          const oldStatus = st.status || {};
+          MODE_MAP[k].pool.forEach(function(w){
+            const ever = st.done || oldStatus[w.id] === 1;
+            st.status[w.id] = ever ? 1 : 0;
+            st.streak[w.id] = st.done ? 2 : (ever ? 1 : 0);
+          });
+        }
       });
       return s;
     }
@@ -406,6 +416,14 @@ function esc(s){
 function knownCount(modeId){
   const st = state.modes[modeId];
   return MODE_MAP[modeId].pool.filter(function(w){ return st.status[w.id] === 1; }).length;
+}
+
+function inFinalReview(modeId){
+  const st = state.modes[modeId];
+  const pool = MODE_MAP[modeId].pool;
+  return !st.done &&
+    pool.every(function(w){ return st.status[w.id] === 1; }) &&
+    pool.some(function(w){ return (st.streak[w.id] || 0) < 2; });
 }
 
 /* ============ 造牌：假名变形干扰项 ============ */
@@ -574,15 +592,17 @@ function renderHome(){
     let btn;
     if (st.done) btn = '再来一遍';
     else if (st.round) {
-      btn = st.round.pos >= st.round.ids.length ? '查看本轮结果' : '继续背诵　' + st.round.pos + '/' + st.round.ids.length;
-    } else btn = '开始背诵';
+      btn = st.round.pos >= st.round.ids.length ? '查看本轮结果'
+        : (st.round.phase === 'final' ? '继续最终复习　' : '继续背诵　') + st.round.pos + '/' + st.round.ids.length;
+    } else if (inFinalReview(m.id)) btn = '开始最终复习';
+    else btn = '开始背诵';
     html += '<div class="card ' + (st.done ? 'done' : '') + '">'
       + '<div class="no">' + m.no + '</div>'
       + '<h2>' + m.name + '</h2>'
       + '<div class="desc">' + m.desc + '</div>'
       + '<div class="bar"><i style="width:' + pct + '%"></i></div>'
       + '<div class="nums"><div class="pct">' + pct + '%</div>'
-      + '<div class="cnt">已掌握 <b>' + known + '</b> / ' + total + '</div></div>'
+      + '<div class="cnt">已答对过 <b>' + known + '</b> / ' + total + '</div></div>'
       + '<button class="btn" data-start="' + m.id + '">' + btn + '</button>'
       + '<button class="reset" data-reset="' + m.id + '">重置本模式进度</button>'
       + '</div>';
@@ -607,27 +627,47 @@ function resetMode(id){
 }
 
 /* ============ 开始 / 继续 ============ */
-function newRound(modeId, phase, ids){
+function buildRound(modeId){
   const st = state.modes[modeId];
+  const mode = MODE_MAP[modeId];
+  const pool = mode.pool;
+  const alive = pool.filter(function(w){ return (st.streak[w.id] || 0) < 2; });
+  if (!alive.length){
+    st.done = true;
+    st.round = null;
+    save();
+    return null;
+  }
+  const allEver = pool.every(function(w){ return st.status[w.id] === 1; });
+  let ids;
+  if (allEver){
+    ids = alive.map(function(w){ return w.id; });
+  } else {
+    const unknown = alive.filter(function(w){ return (st.streak[w.id] || 0) === 0; });
+    const known = alive.filter(function(w){ return (st.streak[w.id] || 0) === 1; });
+    const sampleK = sample(known, Math.ceil(known.length * REVIEW_RATIO));
+    ids = unknown.map(function(w){ return w.id; }).concat(sampleK.map(function(w){ return w.id; }));
+  }
   st.roundNo = (st.roundNo || 0) + 1;
-  st.round = {phase:phase, ids:shuffle(ids), pos:0, wrong:[], right:0};
+  st.round = {phase: allEver ? 'final' : 'normal', ids:shuffle(ids), pos:0, wrong:[], right:0};
   save();
   return st.round;
 }
 
 function startMode(modeId){
   const st = state.modes[modeId];
-  const pool = MODE_MAP[modeId].pool;
   if (st.done){
     if (!confirm('这个模式已经通关了，要重新开始吗？进度会清零。')) return;
     state.modes[modeId] = freshMode();
     save();
   }
   const st2 = state.modes[modeId];
-  if (!st2.round){
-    newRound(modeId, 'normal', pool.map(function(w){ return w.id; }));
-  }
+  if (!st2.round) buildRound(modeId);
   currentModeId = modeId;
+  if (!st2.round){
+    renderVictory(modeId);
+    return;
+  }
   if (st2.round.pos >= st2.round.ids.length) renderSummary(modeId);
   else renderQuestion(modeId);
 }
@@ -645,7 +685,7 @@ function renderQuestion(modeId){
   document.getElementById('q-pos').textContent = round.pos + 1;
   document.getElementById('q-len').textContent = round.ids.length;
   document.getElementById('q-progress-text').textContent = (round.pos + 1) + ' / ' + round.ids.length;
-  document.getElementById('q-round-info').textContent = round.phase === 'final' ? '通关终测' : '';
+  document.getElementById('q-round-info').textContent = round.phase === 'final' ? '最终复习' : '';
 
   const total = mode.pool.length;
   const pct = Math.round(knownCount(modeId) / total * 100);
@@ -711,10 +751,15 @@ function answer(modeId, word, btn, options){
   const chosen = btn.getAttribute('data-val');
   const ok = chosen === correctVal;
 
-  st.status[word.id] = ok ? 1 : 2;
-  if (!ok) st.wrong[word.id] = (st.wrong[word.id] || 0) + 1;
-  if (ok) round.right++;
-  else round.wrong.push(word.id);
+  if (ok){
+    st.status[word.id] = 1;
+    st.streak[word.id] = Math.min(2, (st.streak[word.id] || 0) + 1);
+    round.right++;
+  } else {
+    st.streak[word.id] = 0;
+    st.wrong[word.id] = (st.wrong[word.id] || 0) + 1;
+    round.wrong.push(word.id);
+  }
   round.pos++;
   save();
 
@@ -745,66 +790,38 @@ function answer(modeId, word, btn, options){
 function renderSummary(modeId){
   const st = state.modes[modeId];
   const round = st.round;
+  const pool = MODE_MAP[modeId].pool;
+  const remaining = pool.filter(function(w){ return (st.streak[w.id] || 0) < 2; }).length;
+
   document.getElementById('sum-title').textContent = '第 ' + st.roundNo + ' 轮完成';
   document.getElementById('sum-total').textContent = round.ids.length;
   document.getElementById('sum-right').textContent = round.right;
   document.getElementById('sum-wrong').textContent = round.wrong.length;
 
   let sub;
-  if (round.phase === 'final'){
+  if (remaining === 0){
+    sub = '所有词都已连续答对两次，准备通关。';
+  } else if (round.phase === 'final'){
     sub = round.wrong.length === 0
-      ? '终测全部答对，准备通关。'
-      : '终测有 ' + round.wrong.length + ' 个词又答错了，重新进入下一轮巩固。';
+      ? '最终复习完成，还有 ' + remaining + ' 个词需要再答对一次。'
+      : '最终复习答错的词会继续出现，直到每个词都连续答对两次。';
   } else if (round.wrong.length === 0){
-    sub = '本轮全对，可以直接进入下一轮。';
+    sub = '本轮全对，继续下一轮；只答对过一次的词会随机复习，进度 100% 后进入最终复习。';
   } else {
-    sub = '答错的 ' + round.wrong.length + ' 个词会全部进入下一轮，另外随机抽三成已掌握的词一起复习。';
+    sub = '答错的词全部进入下一轮，只答对过一次的词会随机复习；进度 100% 后进入最终复习。';
   }
   document.getElementById('sum-sub').textContent = sub;
 
   const btn = document.getElementById('sum-next');
-  btn.textContent = '进入下一轮';
+  btn.textContent = remaining === 0 ? '查看通关结果'
+    : (round.phase === 'final' ? '继续最终复习' : '进入下一轮');
   btn.onclick = function(){ nextRound(modeId); };
   showView('view-summary');
 }
 
 function nextRound(modeId){
-  const st = state.modes[modeId];
-  const mode = MODE_MAP[modeId];
-  const pool = mode.pool;
-  const round = st.round;
-
-  const unknown = pool.filter(function(w){ return st.status[w.id] === 2; });
-  const known = pool.filter(function(w){ return st.status[w.id] === 1; });
-
-  if (round.phase === 'final'){
-    if (round.wrong.length === 0){
-      st.done = true;
-      st.round = null;
-      save();
-      renderVictory(modeId);
-      return;
-    }
-    const sampleK = sample(known, Math.ceil(known.length * REVIEW_RATIO));
-    const ids = unknown.map(function(w){ return w.id; }).concat(sampleK.map(function(w){ return w.id; }));
-    st.roundNo++;
-    st.round = {phase:'normal', ids:shuffle(ids), pos:0, wrong:[], right:0};
-    save();
-    renderQuestion(modeId);
-    return;
-  }
-
-  if (unknown.length === 0){
-    newRound(modeId, 'final', pool.map(function(w){ return w.id; }));
-    renderQuestion(modeId);
-    return;
-  }
-
-  const sampleK = sample(known, Math.ceil(known.length * REVIEW_RATIO));
-  const ids = unknown.map(function(w){ return w.id; }).concat(sampleK.map(function(w){ return w.id; }));
-  st.roundNo++;
-  st.round = {phase:'normal', ids:shuffle(ids), pos:0, wrong:[], right:0};
-  save();
+  const r = buildRound(modeId);
+  if (!r){ renderVictory(modeId); return; }
   renderQuestion(modeId);
 }
 
@@ -841,7 +858,7 @@ function renderReview(){
 function renderVictory(modeId){
   const mode = MODE_MAP[modeId];
   const st = state.modes[modeId];
-  document.getElementById('vic-sub').textContent = '「' + mode.name + '」的 ' + mode.pool.length + ' 个词条已经全部掌握。';
+  document.getElementById('vic-sub').textContent = '「' + mode.name + '」的 ' + mode.pool.length + ' 个词条都已连续答对两次。';
   document.getElementById('vic-total').textContent = mode.pool.length;
   document.getElementById('vic-rounds').textContent = st.roundNo;
   document.getElementById('vic-again').onclick = function(){
