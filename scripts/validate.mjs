@@ -283,6 +283,17 @@ try {
   const env3 = boot(saved2), t3 = env3.__t;
   if (t3.state.modes.m1.wrong[firstId] === 1) ok('刷新后错题计数保留');
   else fail('刷新后错题计数丢失');
+
+  // 5.6 旧存档迁移（没有 wrong 字段）
+  const keyMatch = script.match(/const STORE_KEY = '([^']+)'/);
+  if (keyMatch){
+    const old = {version:1, modes:{}};
+    ['m1', 'm2', 'm3'].forEach(k => { old.modes[k] = {status:{}, round:null, done:false, roundNo:0}; });
+    const storeOld = {}; storeOld[keyMatch[1]] = JSON.stringify(old);
+    const envOld = boot(storeOld);
+    if (!envOld.__t.state.modes.m1.wrong) fail('旧存档迁移后没有错题计数对象');
+    else ok('旧存档自动补上错题计数');
+  }
 } catch (e){
   fail('流程模拟异常: ' + e.message);
 }
