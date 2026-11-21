@@ -88,7 +88,7 @@ if (confuseMissing.length) warn('干扰项不足 3 个，将走自动兜底: ' +
 else ok('每个词都有至少 3 个可用中文干扰项');
 
 /* ---------- 3. 汉字干扰项 ---------- */
-console.log('\n[3] 看假名写汉字的干扰项');
+console.log('\n[3] 看假名选汉字的干扰项');
 let kanjiMissing = [], kanaBad = [], readBad = [], dupBad = [];
 for (const w of KANJI_WORDS){
   const d = KANJI_CONFUSE[w.w] || [];
@@ -122,14 +122,12 @@ for (let round = 0; round < 20; round++){
     if (o.length !== 4 || new Set(o).size !== 4 || !o.includes(w.m)) optBad.push('m1:' + w.w);
   }
   for (const w of KANJI_WORDS){
-    const o = optionKana(w);
-    if (o.length !== 4 || new Set(o).size !== 4 || !o.includes(w.k)) optBad.push('m2:' + w.w);
     const p = optionKanji(w);
     if (p.length !== 4 || new Set(p).size !== 4 || !p.includes(w.w)) optBad.push('m3:' + w.w);
   }
 }
 if (optBad.length) fail('选项异常: ' + [...new Set(optBad)].join(', '));
-else ok('三个模式都能稳定生成 4 个互不重复且含正确答案的选项');
+else ok('选项模式都能稳定生成 4 个互不重复且含正确答案的选项');
 
 /* ---------- 5. 完整流程模拟 ---------- */
 console.log('\n[5] 闯关流程模拟');
@@ -198,15 +196,22 @@ function boot(store){
     script + '\n;globalThis.__t = {state, WORDS, current: () => currentModeId, ' +
     'round: () => currentModeId ? state.modes[currentModeId].round : null, ' +
     'activeView: () => document.querySelectorAll(".view").find(v => v.classList.contains("active")).id, ' +
-    'knownCount, inFinalReview, moveWord, renderWords};',
+    'knownCount, inFinalReview, moveWord, renderWords, checkInput};',
     env
   );
   return env;
 }
 
-function answer(env, correct){
-  const t = env.__t, m = t.current(), r = t.round(), w = t.WORDS[r.ids[r.pos]];
-  const right = m === 'm1' ? w.m : (m === 'm2' ? w.k : w.w);
+function answer(env, correct, modeId){
+  const t = env.__t, m = modeId || t.current(), r = t.round(), w = t.WORDS[r.ids[r.pos]];
+  if (m === 'm2' || m === 'm4'){
+    const expected = m === 'm2' ? w.k : w.w;
+    env.els['q-input'].value = correct ? expected : 'not-an-answer';
+    env.els['q-submit'].click();
+    env.flush();
+    return;
+  }
+  const right = m === 'm1' ? w.m : w.w;
   const opts = env.els['q-options'].children.filter(c => c.className.includes('opt'));
   const target = correct
     ? opts.find(o => o.getAttribute('data-val') === right)
@@ -215,44 +220,55 @@ function answer(env, correct){
   target.click(); env.flush();
 }
 
-const modeNames = ['m1', 'm2', 'm3'];
-const pools = [WORDS.length, KANJI_WORDS.length, KANJI_WORDS.length];
+function startModeIn(env, id){
+  const btn = env.els['cards'].querySelectorAll('[data-start]')
+    .find(b => b.getAttribute('data-start') === id);
+  if (!btn) throw new Error('找不到模式按钮: ' + id);
+  btn.click();
+}
+
+const poolSize = {
+  m1: WORDS.length,
+  m2: KANJI_WORDS.length,
+  m3: KANJI_WORDS.length,
+  m4: WORDS.length
+};
 
 try {
   // 5.1 全对直达通关
   let store = {}, env = boot(store), t = env.__t;
-  env.els['cards'].querySelectorAll('[data-start]')[0].click();
+  startModeIn(env, 'm1');
   if (t.activeView() !== 'view-quiz') fail('点击开始后没有切到答题界面');
-  if (!t.round() || t.round().ids.length !== pools[0]) fail('功能一第一轮题数不正确');
-  for (let i = 0; i < pools[0]; i++) answer(env, true);
+  if (!t.round() || t.round().ids.length !== poolSize.m1) fail('功能一第一轮题数不正确');
+  for (let i = 0; i < poolSize.m1; i++) answer(env, true);
   if (t.activeView() !== 'view-summary') fail('第一轮结束没有进入小结');
   env.els['sum-next'].onclick(); env.flush();
-  if (!t.round() || t.round().phase !== 'final') fail('全对后没有进入全词终测');
-  for (let i = 0; i < pools[0]; i++) answer(env, true);
+  if (!t.round() || t.round().phase !== 'final') fail('全对后没有进入最终复习');
+  for (let i = 0; i < poolSize.m1; i++) answer(env, true);
   env.els['sum-next'].onclick(); env.flush();
   if (t.activeView() !== 'view-victory' || !t.state.modes.m1.done) fail('终测全对后没有通关');
   else ok('全对流程：答题 → 小结 → 最终复习 → 通关');
 
   // 5.2 全错后下一轮包含全部错词
   store = {}; env = boot(store); t = env.__t;
-  env.els['cards'].querySelectorAll('[data-start]')[1].click();
-  for (let i = 0; i < pools[1]; i++) answer(env, false);
+  startModeIn(env, 'm2');
+  for (let i = 0; i < poolSize.m2; i++) answer(env, false);
   const wrongIds = new Set(t.round().ids);
   env.els['sum-next'].onclick(); env.flush();
   const nextIds = new Set(t.round().ids);
   let allIn = true;
   for (const id of wrongIds) if (!nextIds.has(id)) allIn = false;
-  if (!allIn || t.round().ids.length < pools[1]) fail('答错的词没有全部进入下一轮');
+  if (!allIn || t.round().ids.length < poolSize.m2) fail('答错的词没有全部进入下一轮');
   else ok('答错的词全部进入下一轮，并混入已掌握词复习');
 
   // 5.3 中途刷新续玩
   store = {}; env = boot(store); t = env.__t;
-  env.els['cards'].querySelectorAll('[data-start]')[2].click();
-  const probe = Math.min(3, pools[2] - 1);
+  startModeIn(env, 'm3');
+  const probe = Math.min(3, poolSize.m3 - 1);
   for (let i = 0; i < probe; i++) answer(env, true);
   const saved = JSON.parse(JSON.stringify(store));
   const env2 = boot(saved), t2 = env2.__t;
-  env2.els['cards'].querySelectorAll('[data-start]')[2].click();
+  startModeIn(env2, 'm3');
   if (t2.activeView() !== 'view-quiz' || t2.round().pos !== probe) fail('刷新后没有从原位置继续');
   else ok('中途刷新后从第 ' + (probe + 1) + ' 题继续');
 
@@ -264,7 +280,7 @@ try {
 
   // 5.5 错题计数与单词表
   store = {}; env = boot(store); t = env.__t;
-  env.els['cards'].querySelectorAll('[data-start]')[0].click();
+  startModeIn(env, 'm1');
   const firstId = t.round().ids[0];
   answer(env, false);
   if (t.state.modes.m1.wrong[firstId] !== 1) fail('答错后错题计数没有 +1');
@@ -339,6 +355,8 @@ try {
              envOld.__t.state.wordSort !== 'list')
       fail('旧存档迁移后没有星标/排序默认值');
     else ok('旧存档迁移：已掌握词按“已对 1 次”处理，星标与排序有默认值');
+    if (!envOld.__t.state.modes.m4) fail('旧存档没有补上第四个模式');
+    else ok('旧存档补上第四个模式');
 
     const oldDone = {version:1, modes:{}};
     ['m1', 'm2', 'm3'].forEach(k => {
@@ -353,13 +371,13 @@ try {
 
   // 5.9 连续答对两次退出 + 最终复习
   store = {}; env = boot(store); t = env.__t;
-  env.els['cards'].querySelectorAll('[data-start]')[0].click();
-  for (let i = 0; i < pools[0]; i++) answer(env, true);
-  if (t.knownCount('m1') !== pools[0]) fail('进度没有按“答对过一次”计算');
+  startModeIn(env, 'm1');
+  for (let i = 0; i < poolSize.m1; i++) answer(env, true);
+  if (t.knownCount('m1') !== poolSize.m1) fail('进度没有按“答对过一次”计算');
   else ok('答对一次后进度按 100% 计算');
 
   env.els['sum-next'].onclick(); env.flush();
-  if (!t.round() || t.round().phase !== 'final' || t.round().ids.length !== pools[0])
+  if (!t.round() || t.round().phase !== 'final' || t.round().ids.length !== poolSize.m1)
     fail('进度 100% 后没有进入最终复习');
   else ok('进度 100% 后进入最终复习');
 
@@ -381,6 +399,42 @@ try {
   env.els['sum-next'].onclick(); env.flush();
   if (!t.state.modes.m1.done) fail('最终复习完成后没有通关');
   else ok('最终复习完成后通关');
+
+  // 5.10 输入模式
+  store = {}; env = boot(store); t = env.__t;
+  if (env.els['cards'].querySelectorAll('[data-start]')[0].getAttribute('data-start') !== 'm4')
+    fail('看中文写日语不在最左边');
+  else ok('看中文写日语是最左侧模式');
+
+  startModeIn(env, 'm4');
+  const w0 = WORDS[t.round().ids[0]];
+  env.els['q-input'].value = w0.w;
+  env.els['q-submit'].click(); env.flush();
+  if (t.state.modes.m4.status[w0.id] !== 1) fail('看中文写日语输入作答没有生效');
+  else ok('看中文写日语可以输入作答');
+
+  const kw = WORDS.find(w => w.hasKanji);
+  if (!t.checkInput('m4', kw, kw.w) || !t.checkInput('m4', kw, kw.k))
+    fail('看中文写日语没有同时接受汉字和假名');
+  else ok('看中文写日语接受汉字或假名');
+  const dup = WORDS.find((w, i) => WORDS.some((x, j) => j < i && x.m === w.m));
+  if (dup){
+    const other = WORDS.find(x => x.id !== dup.id && x.m === dup.m);
+    if (!t.checkInput('m4', dup, other.w)) fail('相同中文释义的另一种写法没有被接受');
+    else ok('相同中文释义的另一个写法也接受');
+  }
+
+  if (!t.checkInput('m2', kw, kw.k) || t.checkInput('m2', kw, 'not-an-answer'))
+    fail('看汉字写假名输入判定不正确');
+  else ok('看汉字写假名按输入内容判定');
+
+  const mixed = WORDS.find(w => /[ァ-ヶ]/.test(w.k));
+  if (mixed){
+    const hira = mixed.k.replace(/[\u30a1-\u30f6]/g,
+      ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+    if (t.checkInput('m2', mixed, hira)) fail('假名判定没有按严格标准写法');
+    else ok('假名判定严格区分平假名/片假名');
+  }
 } catch (e){
   fail('流程模拟异常: ' + e.message);
 }

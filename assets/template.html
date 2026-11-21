@@ -48,7 +48,8 @@
   .top .sub{color:var(--muted);font-size:14px;letter-spacing:.05em}
   .top .sub b{color:var(--ink);font-weight:600}
 
-  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  @media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:760px){.cards{grid-template-columns:1fr}.top h1{font-size:27px}}
 
   .card{
@@ -94,12 +95,13 @@
   .review-title{font-size:30px;font-weight:700;letter-spacing:.05em;margin:0 0 6px}
   .review-sub{font-size:13px;color:var(--muted);letter-spacing:.05em}
   .review-table-wrap{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:auto}
-  .review-table{width:100%;border-collapse:collapse;min-width:720px}
+  .review-table{width:100%;border-collapse:collapse;min-width:820px}
   .review-table th{
     text-align:left;font-size:11.5px;font-weight:600;letter-spacing:.16em;color:#a89e8d;
     padding:14px 16px;border-bottom:1px solid var(--line);background:#fbf8f1;white-space:nowrap;
   }
   .review-table th.c,.review-table td.num{text-align:center}
+  .review-table .th-sub{display:block;font-size:9.5px;font-weight:400;color:#b3a996;letter-spacing:.04em;margin-top:3px}
   .review-table td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
   .review-table tr:last-child td{border-bottom:none}
   .review-table tr:hover td{background:#fdfaf3}
@@ -153,6 +155,7 @@
   .qword rt{font-size:17px;color:var(--accent);letter-spacing:.12em;font-family:"Yu Gothic","Noto Sans JP","Meiryo",sans-serif;font-weight:500}
   .qword .plain{font-size:52px;letter-spacing:.06em}
   .qword .plain.kana{letter-spacing:.1em;font-size:46px}
+  .qword .meaning{display:block;font-size:40px;line-height:1.5;letter-spacing:.02em;font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;color:var(--ink)}
   .qword .hint{display:block;font-size:12.5px;color:var(--muted);margin-top:10px;letter-spacing:.04em;font-family:"Microsoft YaHei",sans-serif}
   .qtitle{text-align:center;font-size:13px;color:var(--muted);letter-spacing:.14em;margin-top:6px}
 
@@ -178,6 +181,14 @@
   .opt.wrong{border-color:var(--red);background:var(--red-soft)}
   .opt.wrong .idx{border-color:var(--red);background:var(--red);color:#fff}
   .opt.dim{opacity:.5}
+
+  .input-area{display:flex;gap:10px;margin-top:28px}
+  .q-input{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:20px;line-height:1.4;font-family:"Yu Gothic","Noto Sans JP","Meiryo","Microsoft YaHei",sans-serif;background:#fffefb;color:var(--ink);outline:none;transition:.15s}
+  .q-input:focus{border-color:var(--accent)}
+  .q-input.correct{border-color:var(--green);background:var(--green-soft)}
+  .q-input.wrong{border-color:var(--red);background:var(--red-soft)}
+  .q-submit{flex:0 0 auto;width:auto;padding:12px 22px}
+  @media(max-width:560px){.input-area{flex-direction:column}.q-submit{width:100%}.qword .meaning{font-size:30px}}
 
   .feedback{
     margin-top:20px;border-radius:12px;padding:0 16px;max-height:0;overflow:hidden;
@@ -251,6 +262,10 @@
           <div class="qtitle" id="q-title">选出正确的中文释义</div>
         </div>
         <div class="options" id="q-options"></div>
+        <div class="input-area" id="q-input-area" style="display:none">
+          <input id="q-input" class="q-input" type="text" lang="ja" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="输入答案后按回车">
+          <button id="q-submit" class="btn q-submit">提交</button>
+        </div>
         <div class="feedback" id="q-feedback"></div>
       </div>
 
@@ -297,7 +312,7 @@
       <div class="review-top">
         <button class="linkbtn" onclick="goHome()">← 返回主页</button>
         <div class="review-title">单词表</div>
-        <div class="review-sub">共 <span id="word-total">0</span> 个词 · 三个模式的累计答错次数 · 星标重要的词</div>
+        <div class="review-sub">共 <span id="word-total">0</span> 个词 · 四个模式的累计答错次数 · 星标重要的词</div>
         <div class="word-toolbar">
           <div class="sort-tabs">
             <button id="sort-list" class="tab on">词表顺序</button>
@@ -310,21 +325,13 @@
       <div class="review-table-wrap">
         <table class="review-table">
           <thead>
-            <tr>
-              <th class="c star-col">星标</th>
-              <th>单词</th>
-              <th>中文释义</th>
-              <th class="c">模式一</th>
-              <th class="c">模式二</th>
-              <th class="c">模式三</th>
-              <th class="c">合计</th>
-            </tr>
+            <tr id="word-head"></tr>
           </thead>
           <tbody id="word-body"></tbody>
         </table>
       </div>
       <div class="word-empty" id="word-empty" style="display:none">还没有星标单词。在表格里点亮星标，再打开「只看星标」。</div>
-      <div class="review-foot">模式二、三只考含汉字的词，纯假名词显示为「—」 · 切到「自定义」后可按住行拖动排序</div>
+      <div class="review-foot">模式三、四只考含汉字的词，纯假名词显示为「—」 · 切到「自定义」后可按住行拖动排序</div>
     </div>
   </section>
 
@@ -385,24 +392,28 @@ const WORDS = RAW.map(function(r, i){
 const KANJI_WORDS = WORDS.filter(function(w){ return w.hasKanji; });
 
 const MODE_DEFS = [
-  {id:'m1', no:'01', name:'看日语选中文', desc:'看单词和读音，从四个中文释义中选出正确的。', pool:WORDS},
-  {id:'m2', no:'02', name:'看汉字写假名', desc:'看汉字写法，选出正确的假名读音，专考长短音、拗音、促音。', pool:KANJI_WORDS},
-  {id:'m3', no:'03', name:'看假名写汉字', desc:'看假名读音，从四个汉字写法中选出正确的。', pool:KANJI_WORDS}
+  {id:'m4', no:'01', name:'看中文写日语', desc:'看中文释义，输入对应的日语单词（汉字或假名均可）。', pool:WORDS, input:true},
+  {id:'m1', no:'02', name:'看日语选中文', desc:'看单词和读音，从四个中文释义中选出正确的。', pool:WORDS},
+  {id:'m2', no:'03', name:'看汉字写假名', desc:'看汉字写法，输入正确的假名读音。', pool:KANJI_WORDS, input:true},
+  {id:'m3', no:'04', name:'看假名选汉字', desc:'看假名读音，从四个汉字写法中选出正确的。', pool:KANJI_WORDS}
 ];
 const MODE_MAP = {};
 MODE_DEFS.forEach(function(m){ MODE_MAP[m.id] = m; });
+const MODE_IDS = {};
+MODE_DEFS.forEach(function(m){ MODE_IDS[m.id] = new Set(m.pool.map(function(w){ return w.id; })); });
 
 const STORE_KEY = 'jpVocabTrainer_v1'; // 每个新词表改一个唯一的名字，避免和别的页面共用进度
 const REVIEW_RATIO = 0.3;
 
 /* ============ 存档 ============ */
 function freshMode(){ return {status:{}, streak:{}, round:null, done:false, roundNo:0, wrong:{}}; }
-function freshState(){ return {version:1, stars:{}, order:WORDS.map(function(w){ return w.id; }), wordSort:'list', modes:{m1:freshMode(), m2:freshMode(), m3:freshMode()}}; }
+function freshState(){ return {version:1, stars:{}, order:WORDS.map(function(w){ return w.id; }), wordSort:'list', modes:{m1:freshMode(), m2:freshMode(), m3:freshMode(), m4:freshMode()}}; }
 let state = (function(){
   try{
     const s = JSON.parse(localStorage.getItem(STORE_KEY));
     if (s && s.modes && s.modes.m1 && s.modes.m2 && s.modes.m3){
-      ['m1', 'm2', 'm3'].forEach(function(k){
+      if (!s.modes.m4) s.modes.m4 = freshMode();
+      ['m1', 'm2', 'm3', 'm4'].forEach(function(k){
         const st = s.modes[k];
         if (!st.wrong) st.wrong = {};
         if (!st.streak){
@@ -734,12 +745,10 @@ function renderQuestion(modeId){
     wordHtml += '<span class="pos-tag" style="font-family:\'Microsoft YaHei\',sans-serif">' + esc(word.p) + '</span>';
     options = optionMeaning(word);
   } else if (modeId === 'm2'){
-    title = '选出正确的假名读音';
+    title = '写出假名读音';
     wordHtml = '<span class="plain jp">' + esc(word.w) + '</span>';
     wordHtml += '<span class="pos-tag" style="font-family:\'Microsoft YaHei\',sans-serif">' + esc(word.p) + '</span>';
-    options = optionKana(word);
-    optClass = 'jp';
-  } else {
+  } else if (modeId === 'm3'){
     title = '选出正确的汉字写法';
     wordHtml = '<span class="plain kana jp">' + esc(word.k) + '</span>';
     const homo = KANJI_WORDS.filter(function(w){ return w.k === word.k; });
@@ -748,35 +757,56 @@ function renderQuestion(modeId){
     }
     options = optionKanji(word);
     optClass = 'jp';
+  } else {
+    title = '写出日语单词';
+    wordHtml = '<span class="meaning">' + esc(word.m) + '</span>';
   }
 
   document.getElementById('q-word').innerHTML = wordHtml;
   document.getElementById('q-title').textContent = title;
 
-  const letters = ['A','B','C','D'];
   const box = document.getElementById('q-options');
-  box.innerHTML = options.map(function(o, i){
-    return '<button class="opt" data-val="' + esc(o) + '">'
-      + '<span class="idx">' + letters[i] + '</span>'
-      + '<span class="txt ' + optClass + '">' + esc(o) + '</span></button>';
-  }).join('');
-  box.querySelectorAll('.opt').forEach(function(btn){
-    btn.addEventListener('click', function(){ answer(modeId, word, btn, options); });
-  });
+  if (options.length){
+    const letters = ['A','B','C','D'];
+    box.innerHTML = options.map(function(o, i){
+      return '<button class="opt" data-val="' + esc(o) + '">'
+        + '<span class="idx">' + letters[i] + '</span>'
+        + '<span class="txt ' + optClass + '">' + esc(o) + '</span></button>';
+    }).join('');
+    box.querySelectorAll('.opt').forEach(function(btn){
+      btn.addEventListener('click', function(){ answer(modeId, word, btn); });
+    });
+  } else {
+    box.innerHTML = '';
+  }
+
+  const inputArea = document.getElementById('q-input-area');
+  const input = document.getElementById('q-input');
+  const submit = document.getElementById('q-submit');
+  if (mode.input){
+    box.style.display = 'none';
+    inputArea.style.display = 'flex';
+    input.value = '';
+    input.disabled = false;
+    input.className = 'q-input';
+    submit.disabled = false;
+    input.placeholder = modeId === 'm2' ? '输入假名读音' : '输入日语单词（汉字或假名）';
+    if (input.focus) input.focus();
+  } else {
+    inputArea.style.display = 'none';
+    box.style.display = '';
+  }
+
   const fb = document.getElementById('q-feedback');
   fb.className = 'feedback';
   fb.innerHTML = '';
   showView('view-quiz');
 }
 
-function answer(modeId, word, btn, options){
+function resolveAnswer(modeId, word, ok, btn){
   if (advanceTimer) return;
-  const mode = MODE_MAP[modeId];
   const st = state.modes[modeId];
   const round = st.round;
-  const correctVal = modeId === 'm1' ? word.m : (modeId === 'm2' ? word.k : word.w);
-  const chosen = btn.getAttribute('data-val');
-  const ok = chosen === correctVal;
 
   if (ok){
     st.status[word.id] = 1;
@@ -790,13 +820,16 @@ function answer(modeId, word, btn, options){
   round.pos++;
   save();
 
-  const box = document.getElementById('q-options');
-  box.querySelectorAll('.opt').forEach(function(b){
-    b.disabled = true;
-    if (b.getAttribute('data-val') === correctVal) b.classList.add('correct');
-    else if (b === btn) b.classList.add('wrong');
-    else b.classList.add('dim');
-  });
+  if (btn){
+    const correctVal = modeId === 'm1' ? word.m : (modeId === 'm2' ? word.k : word.w);
+    const box = document.getElementById('q-options');
+    box.querySelectorAll('.opt').forEach(function(b){
+      b.disabled = true;
+      if (b.getAttribute('data-val') === correctVal) b.classList.add('correct');
+      else if (b === btn) b.classList.add('wrong');
+      else b.classList.add('dim');
+    });
+  }
 
   const fb = document.getElementById('q-feedback');
   fb.className = 'feedback show ' + (ok ? 'ok' : 'no');
@@ -813,6 +846,48 @@ function answer(modeId, word, btn, options){
   }, ok ? 650 : 1250);
 }
 
+function answer(modeId, word, btn){
+  if (advanceTimer) return;
+  const correctVal = modeId === 'm1' ? word.m : (modeId === 'm2' ? word.k : word.w);
+  resolveAnswer(modeId, word, btn.getAttribute('data-val') === correctVal, btn);
+}
+
+function normText(s){ return String(s).normalize('NFKC').trim(); }
+
+function checkInput(modeId, word, value){
+  const v = normText(value);
+  if (!v) return false;
+  if (modeId === 'm2') return v === normText(word.k);
+  if (modeId === 'm4'){
+    return WORDS.some(function(w){
+      if (w.m !== word.m) return false;
+      return v === normText(w.w) ||
+        v === normText(w.w.replace(/^…+/, '')) ||
+        v === normText(w.k);
+    });
+  }
+  return false;
+}
+
+function submitInput(){
+  if (advanceTimer) return;
+  const modeId = currentModeId;
+  if (!modeId) return;
+  const mode = MODE_MAP[modeId];
+  if (!mode.input) return;
+  const st = state.modes[modeId];
+  const round = st.round;
+  if (!round || round.pos >= round.ids.length) return;
+  const word = WORDS[round.ids[round.pos]];
+  const input = document.getElementById('q-input');
+  const val = String(input.value || '').trim();
+  if (!val) return;
+  const ok = checkInput(modeId, word, val);
+  input.disabled = true;
+  document.getElementById('q-submit').disabled = true;
+  if (ok) input.classList.add('correct'); else input.classList.add('wrong');
+  resolveAnswer(modeId, word, ok, null);
+}
 /* ============ 轮次小结 ============ */
 function renderSummary(modeId){
   const st = state.modes[modeId];
@@ -911,10 +986,12 @@ function moveWord(dragId, targetId){
 function renderWords(){
   const sort = (state.wordSort === 'errors' || state.wordSort === 'custom') ? state.wordSort : 'list';
   const rows = WORDS.map(function(w){
-    const c1 = state.modes.m1.wrong[w.id] || 0;
-    const c2 = w.hasKanji ? (state.modes.m2.wrong[w.id] || 0) : null;
-    const c3 = w.hasKanji ? (state.modes.m3.wrong[w.id] || 0) : null;
-    return {w:w, c1:c1, c2:c2, c3:c3, total:c1 + (c2 || 0) + (c3 || 0)};
+    const counts = MODE_DEFS.map(function(m){
+      if (!MODE_IDS[m.id].has(w.id)) return null;
+      return state.modes[m.id].wrong[w.id] || 0;
+    });
+    const total = counts.reduce(function(s, n){ return s + (n || 0); }, 0);
+    return {w:w, counts:counts, total:total};
   });
   let list = rows;
   if (onlyStar) list = list.filter(function(r){ return !!state.stars[r.w.id]; });
@@ -931,6 +1008,14 @@ function renderWords(){
   } else {
     list.sort(function(a, b){ return a.w.id - b.w.id; });
   }
+  const cnNums = ['一', '二', '三', '四', '五'];
+  document.getElementById('word-head').innerHTML =
+    '<th class="c star-col">星标</th><th>单词</th><th>中文释义</th>' +
+    MODE_DEFS.map(function(m, i){
+      return '<th class="c">模式' + (cnNums[i] || (i + 1)) +
+        '<span class="th-sub">' + esc(m.name) + '</span></th>';
+    }).join('') +
+    '<th class="c">合计</th>';
   const cell = function(n){
     if (n === null) return '<td class="num na">—</td>';
     return '<td class="num' + (n > 0 ? ' hit' : '') + '">' + n + '</td>';
@@ -945,7 +1030,7 @@ function renderWords(){
       + '<td class="star-col"><button class="star-btn' + (starred ? ' on' : '') + '" data-star="' + r.w.id + '" title="' + (starred ? '取消星标' : '标记星标') + '">' + (starred ? '★' : '☆') + '</button></td>'
       + '<td>' + word + '</td>'
       + '<td class="rm">' + esc(r.w.m) + '</td>'
-      + cell(r.c1) + cell(r.c2) + cell(r.c3)
+      + r.counts.map(cell).join('')
       + '<td class="num' + (r.total > 0 ? ' hit' : '') + '">' + r.total + '</td></tr>';
   }).join('');
   const empty = document.getElementById('word-empty');
@@ -1009,6 +1094,10 @@ document.getElementById('only-star').addEventListener('click', function(){ onlyS
 document.getElementById('sort-list').addEventListener('click', function(){ setSort('list'); });
 document.getElementById('sort-errors').addEventListener('click', function(){ setSort('errors'); });
 document.getElementById('sort-custom').addEventListener('click', function(){ setSort('custom'); });
+document.getElementById('q-submit').addEventListener('click', submitInput);
+document.getElementById('q-input').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') submitInput();
+});
 renderHome();
 </script>
 </body>
