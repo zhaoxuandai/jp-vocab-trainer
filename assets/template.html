@@ -94,7 +94,7 @@
   .review-title{font-size:30px;font-weight:700;letter-spacing:.05em;margin:0 0 6px}
   .review-sub{font-size:13px;color:var(--muted);letter-spacing:.05em}
   .review-table-wrap{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:auto}
-  .review-table{width:100%;border-collapse:collapse;min-width:660px}
+  .review-table{width:100%;border-collapse:collapse;min-width:720px}
   .review-table th{
     text-align:left;font-size:11.5px;font-weight:600;letter-spacing:.16em;color:#a89e8d;
     padding:14px 16px;border-bottom:1px solid var(--line);background:#fbf8f1;white-space:nowrap;
@@ -110,6 +110,20 @@
   .review-table td.num.hit{color:var(--red);font-weight:700}
   .review-table td.num.na{color:#d3cabb}
   .review-foot{text-align:center;font-size:11.5px;color:#a89e8d;margin-top:14px;letter-spacing:.04em}
+  .word-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .sort-tabs{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+  .sort-tabs .tab{border:none;background:transparent;padding:8px 14px;font-size:12.5px;color:var(--muted);cursor:pointer;font-family:inherit;letter-spacing:.03em;transition:.15s}
+  .sort-tabs .tab:hover{background:var(--paper-deep)}
+  .sort-tabs .tab.on{background:var(--ink);color:#fdf9f1}
+  .star-filter{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 14px;font-size:12.5px;color:var(--muted);cursor:pointer;font-family:inherit;transition:.15s;white-space:nowrap}
+  .star-filter.on{border-color:#d8a12a;color:#a87816;background:#fbf3df}
+  .star-col{width:54px}
+  .star-btn{background:none;border:none;padding:2px 6px;font-size:20px;line-height:1;cursor:pointer;color:#c9bca6;font-family:inherit}
+  .star-btn:hover,.star-btn.on{color:#d8a12a}
+  .review-table tbody tr[draggable="true"]{cursor:grab}
+  .review-table tbody tr.dragging td{opacity:.35}
+  .review-table tbody tr.dragover td{background:var(--accent-soft)}
+  .word-empty{padding:24px;text-align:center;color:var(--muted);font-size:13.5px;background:var(--card);border:1px solid var(--line);border-radius:14px;margin-top:12px}
   @media(max-width:560px){.review-title{font-size:24px}}
 
   /* ---------- 答题 ---------- */
@@ -212,8 +226,8 @@
     </header>
     <div class="cards" id="cards"></div>
     <div class="review-entry">
-      <button class="btn ghost" id="open-review">错题回顾</button>
-      <div class="review-note">查看每个词在三个模式下的累计答错次数</div>
+      <button class="btn ghost" id="open-words">单词表</button>
+      <div class="review-note">查看全部单词、错题次数，标记星标</div>
     </div>
     <div class="foot">连续答对两次的词不再出现 · 进度 100% 后进入最终复习 · 关闭页面后进度不会丢失</div>
   </section>
@@ -277,18 +291,27 @@
     </div>
     </section>
 
-  <!-- 错题回顾 -->
-  <section id="view-review" class="view">
+  <!-- 单词表 -->
+  <section id="view-words" class="view">
     <div class="review">
       <div class="review-top">
         <button class="linkbtn" onclick="goHome()">← 返回主页</button>
-        <div class="review-title">错题回顾</div>
-        <div class="review-sub">所有词汇在三个模式下的累计答错次数 · 按总次数排序</div>
+        <div class="review-title">单词表</div>
+        <div class="review-sub">共 <span id="word-total">0</span> 个词 · 三个模式的累计答错次数 · 星标重要的词</div>
+        <div class="word-toolbar">
+          <div class="sort-tabs">
+            <button id="sort-list" class="tab on">词表顺序</button>
+            <button id="sort-errors" class="tab">错误次数</button>
+            <button id="sort-custom" class="tab">自定义</button>
+          </div>
+          <button id="only-star" class="star-filter">☆ 只看星标</button>
+        </div>
       </div>
       <div class="review-table-wrap">
         <table class="review-table">
           <thead>
             <tr>
+              <th class="c star-col">星标</th>
               <th>单词</th>
               <th>中文释义</th>
               <th class="c">模式一</th>
@@ -297,10 +320,11 @@
               <th class="c">合计</th>
             </tr>
           </thead>
-          <tbody id="review-body"></tbody>
+          <tbody id="word-body"></tbody>
         </table>
       </div>
-      <div class="review-foot">模式二、三只考含汉字的词，纯假名词显示为「—」。</div>
+      <div class="word-empty" id="word-empty" style="display:none">还没有星标单词。在表格里点亮星标，再打开「只看星标」。</div>
+      <div class="review-foot">模式二、三只考含汉字的词，纯假名词显示为「—」 · 切到「自定义」后可按住行拖动排序</div>
     </div>
   </section>
 
@@ -373,7 +397,7 @@ const REVIEW_RATIO = 0.3;
 
 /* ============ 存档 ============ */
 function freshMode(){ return {status:{}, streak:{}, round:null, done:false, roundNo:0, wrong:{}}; }
-function freshState(){ return {version:1, modes:{m1:freshMode(), m2:freshMode(), m3:freshMode()}}; }
+function freshState(){ return {version:1, stars:{}, order:WORDS.map(function(w){ return w.id; }), wordSort:'list', modes:{m1:freshMode(), m2:freshMode(), m3:freshMode()}}; }
 let state = (function(){
   try{
     const s = JSON.parse(localStorage.getItem(STORE_KEY));
@@ -391,6 +415,9 @@ let state = (function(){
           });
         }
       });
+      if (!s.stars) s.stars = {};
+      if (!Array.isArray(s.order) || !s.order.length) s.order = WORDS.map(function(w){ return w.id; });
+      if (!s.wordSort) s.wordSort = 'list';
       return s;
     }
   }catch(e){}
@@ -825,33 +852,139 @@ function nextRound(modeId){
   renderQuestion(modeId);
 }
 
-function openReview(){
-  if (advanceTimer){ clearTimeout(advanceTimer); advanceTimer = null; }
-  currentModeId = null;
-  renderReview();
-  showView('view-review');
+/* ============ 单词表 ============ */
+let onlyStar = false;
+
+function ensureOrder(){
+  if (!Array.isArray(state.order)) state.order = [];
+  const seen = new Set(state.order);
+  let changed = false;
+  WORDS.forEach(function(w){
+    if (!seen.has(w.id)){ state.order.push(w.id); seen.add(w.id); changed = true; }
+  });
+  if (changed) save();
+  return state.order;
 }
 
-function renderReview(){
+function setActive(id, on){
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (on) el.classList.add('on'); else el.classList.remove('on');
+}
+
+function openWords(){
+  if (advanceTimer){ clearTimeout(advanceTimer); advanceTimer = null; }
+  currentModeId = null;
+  renderWords();
+  showView('view-words');
+}
+
+function setSort(mode){
+  state.wordSort = mode;
+  save();
+  renderWords();
+}
+
+function toggleStar(id){
+  if (state.stars[id]) delete state.stars[id];
+  else state.stars[id] = true;
+  save();
+  renderWords();
+}
+
+function moveWord(dragId, targetId){
+  if (dragId === targetId) return;
+  const order = ensureOrder().slice();
+  const from = order.indexOf(dragId);
+  const to = order.indexOf(targetId);
+  if (from < 0 || to < 0) return;
+  order.splice(from, 1);
+  let idx = order.indexOf(targetId);
+  if (from < to) idx += 1;
+  order.splice(idx, 0, dragId);
+  state.order = order;
+  state.wordSort = 'custom';
+  save();
+  renderWords();
+}
+
+function renderWords(){
+  const sort = (state.wordSort === 'errors' || state.wordSort === 'custom') ? state.wordSort : 'list';
   const rows = WORDS.map(function(w){
     const c1 = state.modes.m1.wrong[w.id] || 0;
     const c2 = w.hasKanji ? (state.modes.m2.wrong[w.id] || 0) : null;
     const c3 = w.hasKanji ? (state.modes.m3.wrong[w.id] || 0) : null;
     return {w:w, c1:c1, c2:c2, c3:c3, total:c1 + (c2 || 0) + (c3 || 0)};
   });
-  rows.sort(function(a, b){ return b.total - a.total || a.w.id - b.w.id; });
+  let list = rows;
+  if (onlyStar) list = list.filter(function(r){ return !!state.stars[r.w.id]; });
+  if (sort === 'errors'){
+    list.sort(function(a, b){ return b.total - a.total || a.w.id - b.w.id; });
+  } else if (sort === 'custom'){
+    const pos = {};
+    ensureOrder().forEach(function(id, i){ pos[id] = i; });
+    list.sort(function(a, b){
+      const pa = pos[a.w.id] == null ? 1e9 : pos[a.w.id];
+      const pb = pos[b.w.id] == null ? 1e9 : pos[b.w.id];
+      return pa - pb;
+    });
+  } else {
+    list.sort(function(a, b){ return a.w.id - b.w.id; });
+  }
   const cell = function(n){
     if (n === null) return '<td class="num na">—</td>';
     return '<td class="num' + (n > 0 ? ' hit' : '') + '">' + n + '</td>';
   };
-  document.getElementById('review-body').innerHTML = rows.map(function(r){
+  const body = document.getElementById('word-body');
+  body.innerHTML = list.map(function(r){
     const word = r.w.hasKanji
       ? '<ruby class="rw">' + esc(r.w.w) + '<rt>' + esc(r.w.k) + '</rt></ruby>'
       : '<span class="rw jp">' + esc(r.w.w) + '</span>';
-    return '<tr><td>' + word + '</td><td class="rm">' + esc(r.w.m) + '</td>'
+    const starred = !!state.stars[r.w.id];
+    return '<tr data-id="' + r.w.id + '"' + (sort === 'custom' ? ' draggable="true"' : '') + '>'
+      + '<td class="star-col"><button class="star-btn' + (starred ? ' on' : '') + '" data-star="' + r.w.id + '" title="' + (starred ? '取消星标' : '标记星标') + '">' + (starred ? '★' : '☆') + '</button></td>'
+      + '<td>' + word + '</td>'
+      + '<td class="rm">' + esc(r.w.m) + '</td>'
       + cell(r.c1) + cell(r.c2) + cell(r.c3)
       + '<td class="num' + (r.total > 0 ? ' hit' : '') + '">' + r.total + '</td></tr>';
   }).join('');
+  const empty = document.getElementById('word-empty');
+  empty.style.display = (onlyStar && list.length === 0) ? 'block' : 'none';
+  document.getElementById('word-total').textContent = WORDS.length;
+  const filterBtn = document.getElementById('only-star');
+  filterBtn.textContent = (onlyStar ? '★ ' : '☆ ') + '只看星标';
+  setActive('sort-list', sort === 'list');
+  setActive('sort-errors', sort === 'errors');
+  setActive('sort-custom', sort === 'custom');
+  setActive('only-star', onlyStar);
+  body.querySelectorAll('.star-btn').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      toggleStar(Number(btn.getAttribute('data-star')));
+    });
+  });
+  if (sort === 'custom'){
+    let dragId = null;
+    body.querySelectorAll('tr[data-id]').forEach(function(row){
+      row.addEventListener('dragstart', function(e){
+        dragId = Number(row.getAttribute('data-id'));
+        row.classList.add('dragging');
+        if (e.dataTransfer){
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', String(dragId)); } catch (err) {}
+        }
+      });
+      row.addEventListener('dragend', function(){ row.classList.remove('dragging'); dragId = null; });
+      row.addEventListener('dragover', function(e){ e.preventDefault(); row.classList.add('dragover'); });
+      row.addEventListener('dragleave', function(){ row.classList.remove('dragover'); });
+      row.addEventListener('drop', function(e){
+        e.preventDefault();
+        row.classList.remove('dragover');
+        const target = Number(row.getAttribute('data-id'));
+        if (dragId != null) moveWord(dragId, target);
+      });
+    });
+  }
 }
 
 /* ============ 通关 ============ */
@@ -871,7 +1004,11 @@ function renderVictory(modeId){
 }
 
 /* ============ 启动 ============ */
-document.getElementById('open-review').addEventListener('click', openReview);
+document.getElementById('open-words').addEventListener('click', openWords);
+document.getElementById('only-star').addEventListener('click', function(){ onlyStar = !onlyStar; renderWords(); });
+document.getElementById('sort-list').addEventListener('click', function(){ setSort('list'); });
+document.getElementById('sort-errors').addEventListener('click', function(){ setSort('errors'); });
+document.getElementById('sort-custom').addEventListener('click', function(){ setSort('custom'); });
 renderHome();
 </script>
 </body>

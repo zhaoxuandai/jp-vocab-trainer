@@ -171,13 +171,13 @@ class El {
   }
   addEventListener(e, f){ this._listeners[e] = f; }
   getAttribute(k){ return k in this._attrs ? this._attrs[k] : null; }
-  click(){ if (this._listeners.click) this._listeners.click(); }
+  click(){ if (this._listeners.click) this._listeners.click({ stopPropagation(){} }); }
 }
 
 function boot(store){
   const els = {};
   const get = id => els[id] || (els[id] = new El(id));
-  const views = ['view-home', 'view-quiz', 'view-summary', 'view-victory', 'view-review'].map(get);
+  const views = ['view-home', 'view-quiz', 'view-summary', 'view-victory', 'view-words'].map(get);
   let timers = [];
   const env = {
     document: { querySelectorAll: s => s === '.view' ? views : [], getElementById: get },
@@ -198,7 +198,7 @@ function boot(store){
     script + '\n;globalThis.__t = {state, WORDS, current: () => currentModeId, ' +
     'round: () => currentModeId ? state.modes[currentModeId].round : null, ' +
     'activeView: () => document.querySelectorAll(".view").find(v => v.classList.contains("active")).id, ' +
-    'knownCount, inFinalReview};',
+    'knownCount, inFinalReview, moveWord, renderWords};',
     env
   );
   return env;
@@ -262,7 +262,7 @@ try {
       stateNow.modes.m3.round !== null) ok('三个模式的进度互相独立');
   else fail('三个模式进度没有正确隔离');
 
-  // 5.5 错题计数与错题回顾
+  // 5.5 错题计数与单词表
   store = {}; env = boot(store); t = env.__t;
   env.els['cards'].querySelectorAll('[data-start]')[0].click();
   const firstId = t.round().ids[0];
@@ -270,22 +270,59 @@ try {
   if (t.state.modes.m1.wrong[firstId] !== 1) fail('答错后错题计数没有 +1');
   else ok('答错后错题计数 +1');
 
-  env.els['open-review'].click();
-  if (t.activeView() !== 'view-review') fail('错题回顾入口没有打开独立页面');
+  env.els['open-words'].click();
+  if (t.activeView() !== 'view-words') fail('单词表入口没有打开独立页面');
   else {
-    const body = env.els['review-body'].innerHTML;
-    const rows = (body.match(/<tr>/g) || []).length;
-    if (rows !== WORDS.length) fail('错题回顾没有列出全部词（' + rows + '/' + WORDS.length + '）');
-    else if (!body.includes(WORDS[firstId].w)) fail('错题回顾没有列出答错的词');
-    else ok('错题回顾列出全部 ' + WORDS.length + ' 个词，并包含答错的词');
+    const body = env.els['word-body'].innerHTML;
+    const rows = (body.match(/<tr[\s>]/g) || []).length;
+    if (rows !== WORDS.length) fail('单词表没有列出全部词（' + rows + '/' + WORDS.length + '）');
+    else if (!body.includes(WORDS[firstId].w)) fail('单词表没有列出答错的词');
+    else ok('单词表列出全部 ' + WORDS.length + ' 个词，并包含答错的词');
   }
+
+  // 5.6 星标与只看星标
+  const starBtn = env.els['word-body'].children.find(c => c.className.includes('star-btn'));
+  const starId = Number(starBtn.getAttribute('data-star'));
+  starBtn.click();
+  if (!t.state.stars[starId]) fail('星标没有保存');
+  else ok('星标可以保存');
+  env.els['only-star'].click();
+  const filteredRows = (env.els['word-body'].innerHTML.match(/<tr[\s>]/g) || []).length;
+  if (filteredRows !== 1 || !env.els['word-body'].innerHTML.includes(WORDS[starId].w))
+    fail('只看星标筛选不正确');
+  else ok('只看星标只显示已星标的词');
+  env.els['only-star'].click();
+  const allRows = (env.els['word-body'].innerHTML.match(/<tr[\s>]/g) || []).length;
+  if (allRows !== WORDS.length) fail('关闭只看星标后没有恢复全部词');
+  else ok('关闭只看星标后恢复全部词');
+
+  // 5.7 排序与自定义拖动
+  env.els['sort-errors'].click();
+  const firstTr = env.els['word-body'].innerHTML.split(/<tr[ >]/)[1] || '';
+  if (t.state.wordSort !== 'errors' || !firstTr.includes(WORDS[firstId].w))
+    fail('按错误次数排序不正确');
+  else ok('按错误次数排序正确');
+
+  env.els['sort-list'].click();
+  if (t.state.wordSort !== 'list' || !env.els['word-body'].innerHTML.includes(WORDS[0].w))
+    fail('词表顺序排序不正确');
+  else ok('词表顺序默认排序正确');
+
+  const lastId = WORDS[WORDS.length - 1].id;
+  t.moveWord(lastId, WORDS[0].id);
+  if (t.state.wordSort !== 'custom' || t.state.order[0] !== lastId)
+    fail('拖动排序没有保存自定义顺序');
+  else ok('拖动排序保存自定义顺序');
 
   const saved2 = JSON.parse(JSON.stringify(store));
   const env3 = boot(saved2), t3 = env3.__t;
   if (t3.state.modes.m1.wrong[firstId] === 1) ok('刷新后错题计数保留');
   else fail('刷新后错题计数丢失');
+  if (t3.state.stars[starId] && t3.state.wordSort === 'custom' && t3.state.order[0] === lastId)
+    ok('刷新后星标和自定义顺序保留');
+  else fail('刷新后星标或自定义顺序丢失');
 
-  // 5.6 旧存档迁移
+  // 5.8 旧存档迁移
   const keyMatch = script.match(/const STORE_KEY = '([^']+)'/);
   if (keyMatch){
     const old = {version:1, modes:{}};
@@ -298,7 +335,10 @@ try {
     if (!m1.wrong) fail('旧存档迁移后没有错题计数对象');
     else if (m1.status[0] !== 1 || m1.streak[0] !== 1 || m1.status[1] !== 0 || m1.streak[1] !== 0)
       fail('旧已掌握词的迁移不正确');
-    else ok('旧存档迁移：已掌握词按“已对 1 次”处理');
+    else if (!envOld.__t.state.stars || !Array.isArray(envOld.__t.state.order) ||
+             envOld.__t.state.wordSort !== 'list')
+      fail('旧存档迁移后没有星标/排序默认值');
+    else ok('旧存档迁移：已掌握词按“已对 1 次”处理，星标与排序有默认值');
 
     const oldDone = {version:1, modes:{}};
     ['m1', 'm2', 'm3'].forEach(k => {
@@ -311,7 +351,7 @@ try {
     else ok('旧通关记录保持通关');
   }
 
-  // 5.7 连续答对两次退出 + 最终复习
+  // 5.9 连续答对两次退出 + 最终复习
   store = {}; env = boot(store); t = env.__t;
   env.els['cards'].querySelectorAll('[data-start]')[0].click();
   for (let i = 0; i < pools[0]; i++) answer(env, true);
