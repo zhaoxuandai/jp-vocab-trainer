@@ -185,11 +185,12 @@ function boot(store){
       setItem: (k, v) => { store[k] = v; }
     },
     confirm: () => true,
-    setTimeout: f => { timers.push(f); return timers.length; },
+    setTimeout: (f, ms) => { timers.push({ f: f, ms: ms }); return timers.length; },
     clearTimeout: () => { timers = []; },
     console, Math, JSON
   };
-  env.flush = () => { while (timers.length){ timers.shift()(); } };
+  env.flush = () => { while (timers.length){ timers.shift().f(); } };
+  env.lastDelay = () => timers.length ? timers[timers.length - 1].ms : null;
   env.els = els;
   vm.createContext(env);
   vm.runInContext(
@@ -435,6 +436,26 @@ try {
     if (t.checkInput('m2', mixed, hira)) fail('假名判定没有按严格标准写法');
     else ok('假名判定严格区分平假名/片假名');
   }
+
+  let slowTested = false;
+  while (t.round() && t.round().pos < t.round().ids.length){
+    const cur = WORDS[t.round().ids[t.round().pos]];
+    if (cur.hasKanji){
+      env.els['q-input'].value = cur.k;
+      env.els['q-submit'].click();
+      const fb = env.els['q-feedback'].innerHTML;
+      if (!fb.includes('汉字写法') || env.lastDelay() !== 1250)
+        fail('输入假名时没有展示汉字或停留时间不对');
+      else ok('输入假名时展示汉字写法并延长停留');
+      env.flush();
+      slowTested = true;
+      break;
+    }
+    env.els['q-input'].value = cur.w;
+    env.els['q-submit'].click();
+    env.flush();
+  }
+  if (!slowTested) fail('没有找到含汉字的词测试汉字提示');
 } catch (e){
   fail('流程模拟异常: ' + e.message);
 }

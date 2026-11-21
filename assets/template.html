@@ -803,7 +803,7 @@ function renderQuestion(modeId){
   showView('view-quiz');
 }
 
-function resolveAnswer(modeId, word, ok, btn){
+function resolveAnswer(modeId, word, ok, btn, slow){
   if (advanceTimer) return;
   const st = state.modes[modeId];
   const round = st.round;
@@ -831,9 +831,12 @@ function resolveAnswer(modeId, word, ok, btn){
     });
   }
 
+  const slowHint = !!slow;
+  const label = ok ? (slowHint ? '✓ 答对了 · 记住汉字写法' : '✓ 答对了') : '× 又记一次';
   const fb = document.getElementById('q-feedback');
   fb.className = 'feedback show ' + (ok ? 'ok' : 'no');
-  fb.innerHTML = '<span class="fv">' + (ok ? '✓ 答对了' : '× 又记一次') + '</span>'
+  fb.innerHTML = '<span class="fv">' + label + '</span>'
+    + (slowHint ? '<span class="fk">汉字写法</span>' : '')
     + '<span class="fv jp" style="margin-right:10px">' + esc(word.w) + '</span>'
     + '<span class="fk">' + esc(word.hasKanji ? word.k : '') + '</span>'
     + '<span class="fm">' + esc(word.m) + '</span>';
@@ -843,13 +846,13 @@ function resolveAnswer(modeId, word, ok, btn){
     if (currentModeId !== modeId) return;
     if (round.pos >= round.ids.length) renderSummary(modeId);
     else renderQuestion(modeId);
-  }, ok ? 650 : 1250);
+  }, (ok && !slowHint) ? 650 : 1250);
 }
 
 function answer(modeId, word, btn){
   if (advanceTimer) return;
   const correctVal = modeId === 'm1' ? word.m : (modeId === 'm2' ? word.k : word.w);
-  resolveAnswer(modeId, word, btn.getAttribute('data-val') === correctVal, btn);
+  resolveAnswer(modeId, word, btn.getAttribute('data-val') === correctVal, btn, false);
 }
 
 function normText(s){ return String(s).normalize('NFKC').trim(); }
@@ -883,10 +886,11 @@ function submitInput(){
   const val = String(input.value || '').trim();
   if (!val) return;
   const ok = checkInput(modeId, word, val);
+  const slow = ok && modeId === 'm4' && word.hasKanji && !/[一-鿿]/.test(normText(val));
   input.disabled = true;
   document.getElementById('q-submit').disabled = true;
   if (ok) input.classList.add('correct'); else input.classList.add('wrong');
-  resolveAnswer(modeId, word, ok, null);
+  resolveAnswer(modeId, word, ok, null, slow);
 }
 /* ============ 轮次小结 ============ */
 function renderSummary(modeId){
